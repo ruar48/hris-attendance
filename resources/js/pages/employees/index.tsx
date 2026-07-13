@@ -1,5 +1,5 @@
-import { Head, router } from '@inertiajs/react';
-import { Search } from 'lucide-react';
+import { Head, router, useForm } from '@inertiajs/react';
+import { Search, UserPlus, X } from 'lucide-react';
 import { useState } from 'react';
 import { formatPeso } from '@/lib/money';
 
@@ -22,10 +22,30 @@ type Props = {
     filters: {
         search: string;
     };
+    nextEmployeeCode: string;
 };
 
-export default function EmployeesIndex({ employees, filters }: Props) {
+export default function EmployeesIndex({ employees, filters, nextEmployeeCode }: Props) {
     const [search, setSearch] = useState(filters.search ?? '');
+    const [showForm, setShowForm] = useState(false);
+
+    const form = useForm({
+        employee_code: '',
+        first_name: '',
+        last_name: '',
+        email: '',
+        position: '',
+        department: '',
+        basic_salary: '0',
+        daily_rate: '0',
+        sunday_route_rate: '0',
+        hourly_rate: '0',
+        biometric_user_id: '',
+        hire_date: new Date().toISOString().slice(0, 10),
+    });
+
+    const inputClass =
+        'w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-emerald-400';
 
     return (
         <>
@@ -38,22 +58,219 @@ export default function EmployeesIndex({ employees, filters }: Props) {
                             Each employee is enrolled with a biometric fingerprint ID.
                         </p>
                     </div>
-                    <form
-                        className="relative w-full md:w-80"
-                        onSubmit={(event) => {
-                            event.preventDefault();
-                            router.get('/employees', { search }, { preserveState: true });
-                        }}
-                    >
-                        <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400" />
-                        <input
-                            value={search}
-                            onChange={(event) => setSearch(event.target.value)}
-                            placeholder="Search name, code, biometric ID"
-                            className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pr-3 pl-10 text-sm outline-none focus:border-emerald-400"
-                        />
-                    </form>
+                    <div className="flex w-full flex-col gap-3 sm:flex-row md:w-auto md:items-end">
+                        <form
+                            className="relative w-full sm:w-80"
+                            onSubmit={(event) => {
+                                event.preventDefault();
+                                router.get('/employees', { search }, { preserveState: true });
+                            }}
+                        >
+                            <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400" />
+                            <input
+                                value={search}
+                                onChange={(event) => setSearch(event.target.value)}
+                                placeholder="Search name, code, biometric ID"
+                                className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pr-3 pl-10 text-sm outline-none focus:border-emerald-400"
+                            />
+                        </form>
+                        <button
+                            type="button"
+                            onClick={() => setShowForm((value) => !value)}
+                            className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700"
+                        >
+                            {showForm ? <X className="size-4" /> : <UserPlus className="size-4" />}
+                            {showForm ? 'Close' : 'Add Employee'}
+                        </button>
+                    </div>
                 </div>
+
+                {showForm && (
+                    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                        <div className="mb-4 flex items-center gap-2">
+                            <div className="rounded-xl bg-emerald-100 p-2 text-emerald-600">
+                                <UserPlus className="size-4" />
+                            </div>
+                            <h2 className="text-lg font-semibold text-slate-900">Register New Employee</h2>
+                        </div>
+                        <form
+                            className="grid gap-4 md:grid-cols-2 lg:grid-cols-3"
+                            onSubmit={(event) => {
+                                event.preventDefault();
+                                form.post('/employees', {
+                                    preserveScroll: true,
+                                    onSuccess: () => {
+                                        form.reset();
+                                        setShowForm(false);
+                                    },
+                                });
+                            }}
+                        >
+                            <label className="text-sm">
+                                <span className="mb-1.5 block text-slate-600">Employee Code</span>
+                                <input
+                                    className={inputClass}
+                                    value={form.data.employee_code}
+                                    onChange={(e) => form.setData('employee_code', e.target.value)}
+                                    placeholder={`Auto: ${nextEmployeeCode}`}
+                                />
+                                {form.errors.employee_code && (
+                                    <span className="mt-1 block text-xs text-rose-600">
+                                        {form.errors.employee_code}
+                                    </span>
+                                )}
+                            </label>
+                            <label className="text-sm">
+                                <span className="mb-1.5 block text-slate-600">First Name *</span>
+                                <input
+                                    className={inputClass}
+                                    value={form.data.first_name}
+                                    onChange={(e) => form.setData('first_name', e.target.value)}
+                                    required
+                                />
+                                {form.errors.first_name && (
+                                    <span className="mt-1 block text-xs text-rose-600">
+                                        {form.errors.first_name}
+                                    </span>
+                                )}
+                            </label>
+                            <label className="text-sm">
+                                <span className="mb-1.5 block text-slate-600">Last Name *</span>
+                                <input
+                                    className={inputClass}
+                                    value={form.data.last_name}
+                                    onChange={(e) => form.setData('last_name', e.target.value)}
+                                    required
+                                />
+                                {form.errors.last_name && (
+                                    <span className="mt-1 block text-xs text-rose-600">
+                                        {form.errors.last_name}
+                                    </span>
+                                )}
+                            </label>
+                            <label className="text-sm">
+                                <span className="mb-1.5 block text-slate-600">Email</span>
+                                <input
+                                    type="email"
+                                    className={inputClass}
+                                    value={form.data.email}
+                                    onChange={(e) => form.setData('email', e.target.value)}
+                                />
+                                {form.errors.email && (
+                                    <span className="mt-1 block text-xs text-rose-600">
+                                        {form.errors.email}
+                                    </span>
+                                )}
+                            </label>
+                            <label className="text-sm">
+                                <span className="mb-1.5 block text-slate-600">Position</span>
+                                <input
+                                    className={inputClass}
+                                    value={form.data.position}
+                                    onChange={(e) => form.setData('position', e.target.value)}
+                                />
+                            </label>
+                            <label className="text-sm">
+                                <span className="mb-1.5 block text-slate-600">Department</span>
+                                <input
+                                    className={inputClass}
+                                    value={form.data.department}
+                                    onChange={(e) => form.setData('department', e.target.value)}
+                                />
+                            </label>
+                            <label className="text-sm">
+                                <span className="mb-1.5 block text-slate-600">Basic Salary (₱) *</span>
+                                <input
+                                    type="number"
+                                    min={0}
+                                    step="0.01"
+                                    className={inputClass}
+                                    value={form.data.basic_salary}
+                                    onChange={(e) => form.setData('basic_salary', e.target.value)}
+                                    required
+                                />
+                            </label>
+                            <label className="text-sm">
+                                <span className="mb-1.5 block text-slate-600">Daily Rate (₱) *</span>
+                                <input
+                                    type="number"
+                                    min={0}
+                                    step="0.01"
+                                    className={inputClass}
+                                    value={form.data.daily_rate}
+                                    onChange={(e) => form.setData('daily_rate', e.target.value)}
+                                    required
+                                />
+                            </label>
+                            <label className="text-sm">
+                                <span className="mb-1.5 block text-slate-600">Sunday Route Rate (₱)</span>
+                                <input
+                                    type="number"
+                                    min={0}
+                                    step="0.01"
+                                    className={inputClass}
+                                    value={form.data.sunday_route_rate}
+                                    onChange={(e) => form.setData('sunday_route_rate', e.target.value)}
+                                />
+                            </label>
+                            <label className="text-sm">
+                                <span className="mb-1.5 block text-slate-600">Hourly Rate (₱) *</span>
+                                <input
+                                    type="number"
+                                    min={0}
+                                    step="0.01"
+                                    className={inputClass}
+                                    value={form.data.hourly_rate}
+                                    onChange={(e) => form.setData('hourly_rate', e.target.value)}
+                                    required
+                                />
+                            </label>
+                            <label className="text-sm">
+                                <span className="mb-1.5 block text-slate-600">Biometric User ID</span>
+                                <input
+                                    className={inputClass}
+                                    value={form.data.biometric_user_id}
+                                    onChange={(e) => form.setData('biometric_user_id', e.target.value)}
+                                    placeholder="e.g. BIO-129"
+                                />
+                                {form.errors.biometric_user_id && (
+                                    <span className="mt-1 block text-xs text-rose-600">
+                                        {form.errors.biometric_user_id}
+                                    </span>
+                                )}
+                            </label>
+                            <label className="text-sm">
+                                <span className="mb-1.5 block text-slate-600">Hire Date</span>
+                                <input
+                                    type="date"
+                                    className={inputClass}
+                                    value={form.data.hire_date}
+                                    onChange={(e) => form.setData('hire_date', e.target.value)}
+                                />
+                            </label>
+                            <div className="flex items-center gap-3 md:col-span-2 lg:col-span-3">
+                                <button
+                                    type="submit"
+                                    disabled={form.processing}
+                                    className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+                                >
+                                    Save Employee
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        form.reset();
+                                        form.clearErrors();
+                                        setShowForm(false);
+                                    }}
+                                    className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50"
+                                >
+                                    Cancel
+                                </button>
+                            </div>
+                        </form>
+                    </section>
+                )}
 
                 <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
                     <table className="min-w-full text-left text-sm">

@@ -17,6 +17,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('dashboard', DashboardController::class)->name('dashboard');
 
     Route::get('employees', [EmployeeController::class, 'index'])->name('employees.index');
+    Route::post('employees', [EmployeeController::class, 'store'])->name('employees.store');
 
     Route::get('biometrics', [BiometricController::class, 'index'])->name('biometrics.index');
     Route::post('biometrics/sync', [BiometricController::class, 'sync'])->name('biometrics.sync');
