@@ -13,56 +13,71 @@ use Inertia\Response;
 
 class PayrollController extends Controller
 {
-    public function index(): Response
+    public function index(Request $request): Response
     {
+        $years = PayrollPeriod::query()
+            ->select('year')
+            ->distinct()
+            ->orderByDesc('year')
+            ->pluck('year')
+            ->map(fn ($year) => (int) $year)
+            ->values()
+            ->all();
+
+        $defaultYear = $years[0] ?? (int) now()->year;
+        $year = (int) $request->integer('year', $defaultYear);
+
+        if ($years !== [] && ! in_array($year, $years, true)) {
+            $year = $defaultYear;
+        }
+
         $periods = PayrollPeriod::query()
             ->with('latestRun')
-            ->orderByDesc('year')
+            ->where('year', $year)
             ->orderByDesc('month')
             ->orderByDesc('half')
             ->get()
             ->map(fn (PayrollPeriod $period) => [
                 'id' => $period->id,
                 'name' => $period->name,
-                'month' => $period->month,
+                'year' => (int) $period->year,
+                'month' => (int) $period->month,
                 'status' => $period->status,
                 'start_date' => $period->start_date?->toDateString(),
                 'end_date' => $period->end_date?->toDateString(),
-                'includes_13th_month' => (int) ($period->half ?? 1) === PayrollCalculator::THIRTEENTH_MONTH_HALF,
+                'cutoff_date' => $period->cutoff_date?->toDateString(),
+                'payday' => $period->payday?->toDateString(),
                 'is_thirteenth_month' => (int) ($period->half ?? 1) === PayrollCalculator::THIRTEENTH_MONTH_HALF,
                 'half' => (int) ($period->half ?? 1),
-                'is_kinsena' => (int) ($period->half ?? 1) !== PayrollCalculator::THIRTEENTH_MONTH_HALF,
+                'type' => $this->periodType($period),
                 'latest_run' => $period->latestRun ? [
                     'id' => $period->latestRun->id,
                     'total_employees' => $period->latestRun->total_employees,
                     'total_payroll' => (float) $period->latestRun->total_payroll,
+                    'total_deductions' => (float) $period->latestRun->total_deductions,
                     'net_payroll' => (float) $period->latestRun->net_payroll,
                     'status' => $period->latestRun->status,
+                    'processed_at' => $period->latestRun->processed_at?->toDateTimeString(),
                 ] : null,
             ]);
 
-        $runs = PayrollRun::query()
-            ->with('period')
-            ->latest()
-            ->limit(24)
-            ->get()
-            ->map(fn (PayrollRun $run) => [
-                'id' => $run->id,
-                'period' => $run->period?->name,
-                'month' => $run->period?->month,
-                'half' => (int) ($run->period?->half ?? 1),
-                'total_employees' => $run->total_employees,
-                'total_payroll' => (float) $run->total_payroll,
-                'total_deductions' => (float) $run->total_deductions,
-                'net_payroll' => (float) $run->net_payroll,
-                'status' => $run->status,
-                'processed_at' => $run->processed_at?->toDateTimeString(),
-                'includes_13th_month' => (int) ($run->period?->half ?? 1) === PayrollCalculator::THIRTEENTH_MONTH_HALF,
-            ]);
+        $completed = $periods->where('status', 'completed');
+        $totalNet = $completed->sum(fn (array $period) => (float) ($period['latest_run']['net_payroll'] ?? 0));
+        $totalGross = $completed->sum(fn (array $period) => (float) ($period['latest_run']['total_payroll'] ?? 0));
 
         return Inertia::render('payroll/index', [
-            'periods' => $periods,
-            'runs' => $runs,
+            'filters' => [
+                'year' => $year,
+            ],
+            'years' => $years,
+            'summary' => [
+                'cutoffs' => $periods->count(),
+                'completed' => $completed->count(),
+                'pending' => $periods->count() - $completed->count(),
+                'total_payroll' => round($totalGross, 2),
+                'net_payroll' => round($totalNet, 2),
+            ],
+            'periods' => $periods->values(),
         ]);
     }
 
@@ -114,5 +129,16 @@ class PayrollController extends Controller
                 'net_pay' => (float) $payslip->net_pay,
             ]),
         ]);
+    }
+
+    protected function periodType(PayrollPeriod $period): string
+    {
+        $half = (int) ($period->half ?? 1);
+
+        if ($half === PayrollCalculator::THIRTEENTH_MONTH_HALF) {
+            return '13th_month';
+        }
+
+        return $half === 2 ? '2nd_kinsena' : '1st_kinsena';
     }
 }

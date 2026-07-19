@@ -1,6 +1,7 @@
 import { Link } from '@inertiajs/react';
 import {
     Banknote,
+    Building2,
     CalendarDays,
     ClipboardList,
     Fingerprint,
@@ -50,6 +51,12 @@ const mainNavItems = [
         href: '/cash-advances',
         icon: Banknote,
         tone: 'bg-violet-100 text-violet-600',
+    },
+    {
+        title: 'Gov Benefits',
+        href: '/government-benefits',
+        icon: Building2,
+        tone: 'bg-indigo-100 text-indigo-600',
     },
     {
         title: 'Holidays',

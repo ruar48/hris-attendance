@@ -55,11 +55,6 @@ class PayrollSettingsController extends Controller
             'auto_13th_month' => $data['auto_13th_month'] ? '1' : '0',
         ]);
 
-        PayrollSetting::setValue('payroll_frequency', 'kinsenas');
-
-        return back()->with(
-            'success',
-            'Saved. Kinsenas schedule: ½ monthly basic per cutoff. 13th month pays after December 2nd kinsena.'
-        );
+        return back()->with('success', 'Payroll settings saved.');
     }
 }

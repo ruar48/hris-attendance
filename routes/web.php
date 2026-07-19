@@ -5,6 +5,7 @@ use App\Http\Controllers\CashAdvanceController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DtrController;
 use App\Http\Controllers\EmployeeController;
+use App\Http\Controllers\GovernmentBenefitsController;
 use App\Http\Controllers\HolidayController;
 use App\Http\Controllers\PayrollController;
 use App\Http\Controllers\PayrollSettingsController;
@@ -41,6 +42,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::get('payroll-settings', [PayrollSettingsController::class, 'edit'])->name('payroll-settings.edit');
     Route::put('payroll-settings', [PayrollSettingsController::class, 'update'])->name('payroll-settings.update');
+
+    Route::get('government-benefits', [GovernmentBenefitsController::class, 'index'])
+        ->name('government-benefits.index');
 });
 
 require __DIR__.'/settings.php';

@@ -51,8 +51,8 @@ export default function PayrollSettingsPage({ settings }: Props) {
                     <div>
                         <h1 className="text-2xl font-bold text-slate-900">Payroll Settings</h1>
                         <p className="mt-1 text-sm text-slate-500">
-                            Set rates and rules so payroll knows how to compute OT, Sunday route, late,
-                            cash advance, holiday, government benefits, and 13th month.
+                            Set rates and rules for OT, Sunday route, late, undertime, cash advance,
+                            holiday, government benefits, and 13th month.
                         </p>
                     </div>
                     <button
@@ -67,22 +67,6 @@ export default function PayrollSettingsPage({ settings }: Props) {
                 </div>
 
                 <div className="grid gap-5 xl:grid-cols-2">
-                    <Section
-                        icon={Wallet}
-                        title="Pay Schedule (Kinsenas)"
-                        tone="emerald"
-                        description="Company pays twice a month — 1st and 2nd kinsena."
-                    >
-                        <HelpBox>
-                            <strong>1st Kinsena:</strong> days 1–15 · basic = monthly salary ÷ 2
-                            <br />
-                            <strong>2nd Kinsena:</strong> days 16–end · basic = monthly salary ÷ 2
-                            <br />
-                            <strong>13th month:</strong> (total basic earned in the year) ÷ 12. Paid on
-                            its own payslip after December 2nd kinsena.
-                        </HelpBox>
-                    </Section>
-
                     <Section
                         icon={Clock3}
                         title="Work Schedule, Late & Undertime"
@@ -397,9 +381,9 @@ export default function PayrollSettingsPage({ settings }: Props) {
                         icon={PiggyBank}
                         title="Government Benefits"
                         tone="indigo"
-                        description="Automatic deductions computed from basic salary."
+                        description="Automatic deductions computed from kinsena basic pay."
                     >
-                        <Field label="SSS rate" hint="Example: 0.05 = 5% of basic">
+                        <Field label="SSS rate" hint="Example: 0.05 = 5% of kinsena basic">
                             <input
                                 type="number"
                                 step="0.001"
@@ -410,7 +394,7 @@ export default function PayrollSettingsPage({ settings }: Props) {
                                 onChange={(e) => form.setData('sss_rate', Number(e.target.value))}
                             />
                         </Field>
-                        <Field label="PhilHealth rate" hint="Example: 0.025 = 2.5% of basic">
+                        <Field label="PhilHealth rate" hint="Example: 0.025 = 2.5% of kinsena basic">
                             <input
                                 type="number"
                                 step="0.001"
@@ -423,7 +407,10 @@ export default function PayrollSettingsPage({ settings }: Props) {
                                 }
                             />
                         </Field>
-                        <Field label="Pag-IBIG fixed (₱)" hint="Fixed amount per payroll">
+                        <Field
+                            label="Pag-IBIG monthly (₱)"
+                            hint="Full monthly amount; each kinsena deducts half"
+                        >
                             <input
                                 type="number"
                                 step="0.01"
