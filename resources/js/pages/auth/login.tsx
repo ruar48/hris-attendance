@@ -22,7 +22,6 @@ export default function Login({ status, canResetPassword }: Props) {
         <>
             <Head title="Log in" />
 
-            <PasskeyVerify />
 
             <Form
                 {...store.form()}

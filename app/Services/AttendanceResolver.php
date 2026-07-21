@@ -23,7 +23,7 @@ class AttendanceResolver
      */
     public function syncPeriod(CarbonInterface $start, CarbonInterface $end): Collection
     {
-        $employees = Employee::query()->active()->get();
+        $employees = Employee::query()->forPayrollPeriod($start)->get();
         $holidays = Holiday::mapForPeriod($start, $end);
 
         $records = collect();
@@ -32,6 +32,11 @@ class AttendanceResolver
             foreach (CarbonPeriod::create($start, $end) as $day) {
                 /** @var CarbonInterface $day */
                 if ($day->isWeekend() && ! $day->isSunday()) {
+                    continue;
+                }
+
+                // Nothing to resolve after someone's last working day.
+                if ($employee->last_working_day !== null && $day->gt($employee->last_working_day)) {
                     continue;
                 }
 

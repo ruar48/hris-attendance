@@ -41,7 +41,7 @@ class PayrollCalculator
                 'status' => 'in_progress',
             ]);
 
-            $employees = Employee::query()->active()->get();
+            $employees = Employee::query()->forPayrollPeriod($period->start_date)->get();
             $totalPayroll = 0.0;
             $totalDeductions = 0.0;
 
@@ -140,7 +140,7 @@ class PayrollCalculator
         PayrollPeriod $period,
         ?Collection $employees = null
     ): PayrollRun {
-        $employees ??= Employee::query()->active()->get();
+        $employees ??= Employee::query()->forPayrollPeriod($period->start_date)->get();
 
         $run = PayrollRun::query()->create([
             'payroll_period_id' => $period->id,
@@ -184,7 +184,7 @@ class PayrollCalculator
             ->whereBetween('work_date', [$period->start_date, $period->end_date])
             ->get();
 
-        $basicPay = $this->periodBasicPay($employee);
+        $basicPay = $this->periodBasicPay($employee, $period);
         $holidayPay = (float) $attendance->sum('holiday_pay');
         $sundayRoute = (float) $attendance->sum('sunday_pay');
         $overtimePay = (float) $attendance->sum('ot_pay');
@@ -261,9 +261,24 @@ class PayrollCalculator
     /**
      * Kinsenas: half of monthly basic per cutoff (1–15 and 16–end).
      */
-    protected function periodBasicPay(Employee $employee): float
+    /**
+     * Half-month basic pay, prorated when the employee left mid-period.
+     *
+     * Someone who worked 10 days of a 15-day period earns 10/15 of the basic.
+     */
+    protected function periodBasicPay(Employee $employee, PayrollPeriod $period): float
     {
-        return round(((float) $employee->basic_salary) / 2, 2);
+        $basic = ((float) $employee->basic_salary) / 2;
+
+        if (! $employee->leftDuring($period->end_date)) {
+            return round($basic, 2);
+        }
+
+        $totalDays = $period->start_date->diffInDays($period->end_date) + 1;
+        $workedDays = $period->start_date->diffInDays($employee->last_working_day) + 1;
+        $workedDays = max(0, min($workedDays, $totalDays));
+
+        return round($basic * $workedDays / $totalDays, 2);
     }
 
     /**
