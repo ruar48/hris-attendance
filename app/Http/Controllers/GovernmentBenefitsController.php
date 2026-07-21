@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\PayrollPeriod;
-use App\Models\PayrollSetting;
 use App\Services\PayrollCalculator;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -69,10 +68,12 @@ class GovernmentBenefitsController extends Controller
                 'year' => $year,
             ],
             'years' => $years,
-            'settings' => [
-                'sss_rate' => (float) PayrollSetting::getValue('sss_rate'),
-                'philhealth_rate' => (float) PayrollSetting::getValue('philhealth_rate'),
-                'pagibig_fixed' => (float) PayrollSetting::getValue('pagibig_fixed'),
+            // Statutory formulas — not editable, see PayrollCalculator@sssEmployeeShare
+            // and friends for the bracket logic these summarize.
+            'formulas' => [
+                'sss' => '5% of Monthly Salary Credit (comp rounded to nearest ₱500, floor ₱5,000, cap ₱35,000)',
+                'philhealth' => '2.5% of monthly basic salary (floor ₱10,000, cap ₱100,000)',
+                'pagibig' => '2% of monthly comp up to ₱10,000 cap (1% if comp ≤ ₱1,500) — max ₱200/month',
             ],
             'summary' => [
                 'sss' => $totalSss,

@@ -1,4 +1,4 @@
-import { Head, useForm } from '@inertiajs/react';
+import { Head, Link, useForm } from '@inertiajs/react';
 import { Clock3, Gift, MapPin, PiggyBank, Save, Wallet } from 'lucide-react';
 
 type Settings = Record<string, string>;
@@ -34,10 +34,6 @@ export default function PayrollSettingsPage({ settings }: Props) {
 
         cash_advance_max_deduction: Number(settings.cash_advance_max_deduction ?? 1000),
         cash_advance_auto_deduct: toBool(settings.cash_advance_auto_deduct),
-
-        sss_rate: Number(settings.sss_rate ?? 0.05),
-        philhealth_rate: Number(settings.philhealth_rate ?? 0.025),
-        pagibig_fixed: Number(settings.pagibig_fixed ?? 200),
 
         auto_13th_month: toBool(settings.auto_13th_month),
         thirteenth_month_divisor: Number(settings.thirteenth_month_divisor ?? 12),
@@ -381,47 +377,31 @@ export default function PayrollSettingsPage({ settings }: Props) {
                         icon={PiggyBank}
                         title="Government Benefits"
                         tone="indigo"
-                        description="Automatic deductions computed from kinsena basic pay."
+                        description="Statutory rates — computed automatically per the official schedules, not editable here."
                     >
-                        <Field label="SSS rate" hint="Example: 0.05 = 5% of kinsena basic">
-                            <input
-                                type="number"
-                                step="0.001"
-                                min={0}
-                                max={1}
-                                className={inputClass}
-                                value={form.data.sss_rate}
-                                onChange={(e) => form.setData('sss_rate', Number(e.target.value))}
-                            />
-                        </Field>
-                        <Field label="PhilHealth rate" hint="Example: 0.025 = 2.5% of kinsena basic">
-                            <input
-                                type="number"
-                                step="0.001"
-                                min={0}
-                                max={1}
-                                className={inputClass}
-                                value={form.data.philhealth_rate}
-                                onChange={(e) =>
-                                    form.setData('philhealth_rate', Number(e.target.value))
-                                }
-                            />
-                        </Field>
-                        <Field
-                            label="Pag-IBIG monthly (₱)"
-                            hint="Full monthly amount; each kinsena deducts half"
-                        >
-                            <input
-                                type="number"
-                                step="0.01"
-                                min={0}
-                                className={inputClass}
-                                value={form.data.pagibig_fixed}
-                                onChange={(e) =>
-                                    form.setData('pagibig_fixed', Number(e.target.value))
-                                }
-                            />
-                        </Field>
+                        <div className="space-y-2 text-sm text-slate-600">
+                            <p>
+                                <span className="font-semibold text-slate-800">SSS:</span> 5% of the
+                                Monthly Salary Credit (monthly comp rounded to the nearest ₱500,
+                                floor ₱5,000, cap ₱35,000).
+                            </p>
+                            <p>
+                                <span className="font-semibold text-slate-800">PhilHealth:</span>{' '}
+                                2.5% of monthly basic salary (floor ₱10,000, cap ₱100,000).
+                            </p>
+                            <p>
+                                <span className="font-semibold text-slate-800">Pag-IBIG:</span> 2%
+                                of monthly comp, capped at a ₱10,000 base (1% if comp is ₱1,500 or
+                                less) — max ₱200/month.
+                            </p>
+                            <p className="text-xs text-slate-400">
+                                Each kinsena payslip deducts half of the monthly amount. See{' '}
+                                <Link href="/government-benefits" className="underline">
+                                    Government Benefits
+                                </Link>{' '}
+                                for totals.
+                            </p>
+                        </div>
                     </Section>
                 </div>
             </div>

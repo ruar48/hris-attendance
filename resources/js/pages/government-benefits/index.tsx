@@ -1,5 +1,5 @@
-import { Head, Link, router } from '@inertiajs/react';
-import { Building2, Settings } from 'lucide-react';
+import { Head, router } from '@inertiajs/react';
+import { Building2 } from 'lucide-react';
 import { formatPeso } from '@/lib/money';
 import { cn } from '@/lib/utils';
 
@@ -26,10 +26,10 @@ type Props = {
         year: number;
     };
     years: number[];
-    settings: {
-        sss_rate: number;
-        philhealth_rate: number;
-        pagibig_fixed: number;
+    formulas: {
+        sss: string;
+        philhealth: string;
+        pagibig: string;
     };
     summary: {
         sss: number;
@@ -59,7 +59,7 @@ const monthNames = [
 export default function GovernmentBenefitsIndex({
     filters,
     years,
-    settings,
+    formulas,
     summary,
     periods,
 }: Props) {
@@ -96,19 +96,11 @@ export default function GovernmentBenefitsIndex({
                     </label>
                 </div>
 
-                <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-indigo-100 bg-indigo-50/60 px-4 py-3 text-sm text-indigo-900">
-                    <span>
-                        Current rates: SSS {(settings.sss_rate * 100).toFixed(1)}% · PhilHealth{' '}
-                        {(settings.philhealth_rate * 100).toFixed(1)}% · Pag-IBIG{' '}
-                        {formatPeso(settings.pagibig_fixed)}/month
-                    </span>
-                    <Link
-                        href="/payroll-settings"
-                        className="inline-flex items-center gap-1.5 font-semibold text-indigo-700 hover:underline"
-                    >
-                        <Settings className="size-4" />
-                        Edit in Payroll Settings
-                    </Link>
+                <div className="flex flex-col gap-1.5 rounded-xl border border-indigo-100 bg-indigo-50/60 px-4 py-3 text-sm text-indigo-900">
+                    <span className="font-semibold">Statutory formulas (not editable):</span>
+                    <span>SSS — {formulas.sss}</span>
+                    <span>PhilHealth — {formulas.philhealth}</span>
+                    <span>Pag-IBIG — {formulas.pagibig}</span>
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">

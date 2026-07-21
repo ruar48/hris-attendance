@@ -242,9 +242,9 @@ class PayrollCalculator
             $timeDeductions = round($lateDeduction + $undertimeDeduction, 2);
         }
 
-        // Contributions are based on the full basic — a single absent day does
-        // not change an employee's contribution bracket.
-        $gov = $this->governmentBenefits($basicPay);
+        // Contributions are based on the full monthly basic — a single absent
+        // day does not change an employee's contribution bracket.
+        $gov = $this->governmentBenefits($employee);
 
         $totalEarnings = round(
             $basicPay + $holidayPay + $sundayRoute + $overtimePay,
@@ -512,18 +512,64 @@ class PayrollCalculator
     }
 
     /**
+     * Statutory contributions are computed on the employee's full monthly
+     * basic salary (brackets are defined per month, not per cutoff), then
+     * split evenly across the two kinsena payslips.
+     *
      * @return array{sss: float, philhealth: float, pagibig: float}
      */
-    protected function governmentBenefits(float $basicPay): array
+    protected function governmentBenefits(Employee $employee): array
     {
-        $sssRate = PayrollSetting::float('sss_rate');
-        $philhealthRate = PayrollSetting::float('philhealth_rate');
-        $pagibig = round(PayrollSetting::float('pagibig_fixed') / 2, 2);
+        $monthlyBasic = (float) $employee->basic_salary;
 
         return [
-            'sss' => round($basicPay * $sssRate, 2),
-            'philhealth' => round($basicPay * $philhealthRate, 2),
-            'pagibig' => $pagibig,
+            'sss' => round($this->sssEmployeeShare($monthlyBasic) / 2, 2),
+            'philhealth' => round($this->philhealthEmployeeShare($monthlyBasic) / 2, 2),
+            'pagibig' => round($this->pagibigEmployeeShare($monthlyBasic) / 2, 2),
         ];
+    }
+
+    /**
+     * SSS employee share (RA 11199 / SSS Circular 2025-006, effective Jan 2025):
+     * 5% of the Monthly Salary Credit (MSC).
+     *
+     * The MSC is the monthly compensation rounded to the nearest ₱500,
+     * floored at ₱5,000 and capped at ₱35,000 — e.g. ₱15,000 comp → MSC
+     * ₱15,000; ₱4,000 comp → MSC ₱5,000 (floor); ₱40,000 comp → MSC ₱35,000
+     * (cap). Amounts above MSC ₱20,000 are credited to WISP (the mandatory
+     * provident fund) but are still withheld at the same 5% employee rate,
+     * so the total employee deduction formula does not change.
+     */
+    protected function sssEmployeeShare(float $monthlyCompensation): float
+    {
+        $msc = min(35000.0, max(5000.0, round($monthlyCompensation / 500) * 500));
+
+        return round($msc * 0.05, 2);
+    }
+
+    /**
+     * PhilHealth employee share (Universal Health Care Act, premium rate
+     * frozen at 5% total since 2024): 2.5% of monthly basic salary, using a
+     * salary floor of ₱10,000 and a ceiling of ₱100,000.
+     */
+    protected function philhealthEmployeeShare(float $monthlyCompensation): float
+    {
+        $base = min(100000.0, max(10000.0, $monthlyCompensation));
+
+        return round($base * 0.025, 2);
+    }
+
+    /**
+     * Pag-IBIG (HDMF Circular 460) employee share: 1% of monthly compensation
+     * up to ₱1,500, otherwise 2%. The compensation used in the computation is
+     * itself capped at ₱10,000, so the maximum employee share is ₱200/month
+     * for anyone earning ₱10,000/month or more.
+     */
+    protected function pagibigEmployeeShare(float $monthlyCompensation): float
+    {
+        $base = min($monthlyCompensation, 10000.0);
+        $rate = $monthlyCompensation <= 1500.0 ? 0.01 : 0.02;
+
+        return round($base * $rate, 2);
     }
 }

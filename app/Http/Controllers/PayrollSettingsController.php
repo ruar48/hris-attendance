@@ -39,10 +39,6 @@ class PayrollSettingsController extends Controller
             'cash_advance_max_deduction' => ['required', 'numeric', 'min:0'],
             'cash_advance_auto_deduct' => ['required', 'boolean'],
 
-            'sss_rate' => ['required', 'numeric', 'min:0', 'max:1'],
-            'philhealth_rate' => ['required', 'numeric', 'min:0', 'max:1'],
-            'pagibig_fixed' => ['required', 'numeric', 'min:0'],
-
             'auto_13th_month' => ['required', 'boolean'],
             'thirteenth_month_divisor' => ['required', 'integer', 'min:1', 'max:24'],
         ]);

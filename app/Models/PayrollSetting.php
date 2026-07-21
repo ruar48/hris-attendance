@@ -44,10 +44,10 @@ class PayrollSetting extends Model
             'cash_advance_max_deduction' => '1000',
             'cash_advance_auto_deduct' => '1',
 
-            // Government benefits
-            'sss_rate' => '0.05',
-            'philhealth_rate' => '0.025',
-            'pagibig_fixed' => '200',
+            // Government benefits (SSS, PhilHealth, Pag-IBIG) are computed from
+            // the statutory brackets in PayrollCalculator — they are mandated
+            // rates, not company policy, so they are intentionally not
+            // editable here.
 
             // Pay schedule: kinsenas (semi-monthly / quincena) only
             'payroll_frequency' => 'kinsenas',

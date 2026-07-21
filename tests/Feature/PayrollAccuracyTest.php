@@ -21,12 +21,24 @@ uses(RefreshDatabase::class);
 | and the default payroll settings, so these tests fail if the engine's maths
 | ever drifts. Reference employee: basic 15,000/mo, hourly 75, daily 600.
 |
+| Government contributions use the statutory formulas (see
+| PayrollCalculator@sssEmployeeShare and friends), computed on the full
+| monthly basic and then split in half per kinsena. At 15,000/mo none of the
+| brackets' floors or ceilings kick in, so the numbers below are exact:
+|
+|   SSS:        MSC = round(15,000/500)*500 = 15,000 (no floor/cap applied)
+|               monthly = 15,000 * 5%        =    750.00 -> 375.00/kinsena
+|   PhilHealth: base = 15,000 (between 10,000 floor and 100,000 cap)
+|               monthly = 15,000 * 2.5%      =    375.00 -> 187.50/kinsena
+|   Pag-IBIG:   base = min(15,000, 10,000) = 10,000; rate 2% (comp > 1,500)
+|               monthly = 10,000 * 2%        =    200.00 -> 100.00/kinsena
+|
 |   half-month basic  = 15,000 / 2   = 7,500.00
-|   sss               = 7,500 * 0.05 =   375.00
-|   philhealth        = 7,500 * 0.025=   187.50
-|   pagibig           = 200 / 2      =   100.00
-|   government total                 =   662.50
-|   cash advance default = 1,000 / 2 =   500.00
+|   sss                                =   375.00
+|   philhealth                         =   187.50
+|   pagibig                            =   100.00
+|   government total                   =   662.50
+|   cash advance default = 1,000 / 2   =   500.00
 |
 | Scheduled working days are Mon-Sat; Sunday is the rest day. The Jan 1-15
 | cutoff therefore has 13 scheduled days (Jan 4 and Jan 11 are Sundays).
@@ -149,6 +161,56 @@ test('government contributions across a full month equal the monthly rates', fun
     expect((float) $a->sss + (float) $b->sss)->toBe(750.00)
         ->and((float) $a->philhealth + (float) $b->philhealth)->toBe(375.00)
         ->and((float) $a->pagibig + (float) $b->pagibig)->toBe(200.00);
+});
+
+test('SSS applies the 5,000 MSC floor and PhilHealth the 10,000 salary floor for low earners', function () {
+    $employee = Employee::query()->create([
+        'employee_code' => 'EMP-LOW',
+        'first_name' => 'Low',
+        'last_name' => 'Earner',
+        'basic_salary' => 4000, // half-month basic 2,000
+        'daily_rate' => 160,
+        'hourly_rate' => 20,
+        'status' => 'active',
+    ]);
+
+    $period = period();
+    presentAllPeriod($employee, $period);
+
+    $run = app(PayrollCalculator::class)->run($period, syncAttendance: false);
+    $payslip = $run->payslips()->where('employee_id', $employee->id)->firstOrFail();
+
+    // SSS: MSC = round(4,000/500)*500 = 4,000, floored to 5,000 -> 5,000*5% / 2 = 125.00
+    // PhilHealth: floored to 10,000 -> 10,000*2.5% / 2 = 125.00
+    // Pag-IBIG: comp 4,000 <= 10,000 cap, rate 2% (comp > 1,500) -> 4,000*2% / 2 = 40.00
+    expect((float) $payslip->sss)->toBe(125.00)
+        ->and((float) $payslip->philhealth)->toBe(125.00)
+        ->and((float) $payslip->pagibig)->toBe(40.00);
+});
+
+test('SSS applies the 35,000 MSC cap and PhilHealth the 100,000 salary cap for high earners', function () {
+    $employee = Employee::query()->create([
+        'employee_code' => 'EMP-HIGH',
+        'first_name' => 'High',
+        'last_name' => 'Earner',
+        'basic_salary' => 200000,
+        'daily_rate' => 8000,
+        'hourly_rate' => 1000,
+        'status' => 'active',
+    ]);
+
+    $period = period();
+    presentAllPeriod($employee, $period);
+
+    $run = app(PayrollCalculator::class)->run($period, syncAttendance: false);
+    $payslip = $run->payslips()->where('employee_id', $employee->id)->firstOrFail();
+
+    // SSS: MSC capped at 35,000 -> 35,000*5% / 2 = 875.00
+    // PhilHealth: capped at 100,000 -> 100,000*2.5% / 2 = 1,250.00
+    // Pag-IBIG: comp capped at 10,000 -> 10,000*2% / 2 = 100.00
+    expect((float) $payslip->sss)->toBe(875.00)
+        ->and((float) $payslip->philhealth)->toBe(1250.00)
+        ->and((float) $payslip->pagibig)->toBe(100.00);
 });
 
 test('one absent day deducts exactly one days worth of basic', function () {
