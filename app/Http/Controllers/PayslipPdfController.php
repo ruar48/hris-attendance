@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Models\PayrollRun;
 use App\Models\Payslip;
 use Barryvdh\DomPDF\Facade\Pdf;
-use Illuminate\Http\Response;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
 class PayslipPdfController extends Controller

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\DtrLog;
 use App\Models\Employee;
 use App\Services\AttendanceResolver;
+use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -32,7 +33,7 @@ class DtrController extends Controller
 
         return Inertia::render('dtr/index', [
             'logs' => $logs,
-            'employees' => Employee::query()->active()->orderBy('first_name')->get(['id', 'employee_code', 'first_name', 'last_name']),
+            'employees' => Employee::query()->active()->orderBy('employee_code')->get(['id', 'employee_code', 'first_name', 'last_name']),
             'notice' => 'DTR is a fallback only. Use it when the biometric fingerprint device has a problem.',
         ]);
     }
@@ -62,7 +63,7 @@ class DtrController extends Controller
         );
 
         $employee = Employee::query()->findOrFail($data['employee_id']);
-        $resolver->resolveDay($employee, \Carbon\Carbon::parse($data['work_date']));
+        $resolver->resolveDay($employee, Carbon::parse($data['work_date']));
 
         return back()->with('success', 'DTR fallback saved. It will only apply if biometric data is missing for that day.');
     }

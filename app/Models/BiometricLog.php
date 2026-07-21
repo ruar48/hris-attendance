@@ -2,9 +2,15 @@
 
 namespace App\Models;
 
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
+/**
+ * Attribute types produced by the casts below.
+ *
+ * @property-read CarbonImmutable|null $punched_at
+ */
 class BiometricLog extends Model
 {
     protected $fillable = [

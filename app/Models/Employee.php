@@ -100,8 +100,9 @@ class Employee extends Model
      * Their basic pay is prorated in PayrollCalculator::periodBasicPay().
      *
      * @param  Builder<Employee>  $query
+     * @return Builder<Employee>
      */
-    public function scopeForPayrollPeriod($query, CarbonInterface $startDate)
+    public function scopeForPayrollPeriod(Builder $query, CarbonInterface $startDate): Builder
     {
         return $query->withTrashed()
             ->where('status', 'active')

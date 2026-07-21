@@ -2,10 +2,16 @@
 
 namespace App\Models;
 
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
+/**
+ * Attribute types produced by the casts below.
+ *
+ * @property-read CarbonImmutable|null $processed_at
+ */
 class PayrollRun extends Model
 {
     protected $fillable = [

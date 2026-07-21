@@ -33,6 +33,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::get('cash-advances', [CashAdvanceController::class, 'index'])->name('cash-advances.index');
     Route::post('cash-advances', [CashAdvanceController::class, 'store'])->name('cash-advances.store');
+    Route::put('cash-advances/{cashAdvance}', [CashAdvanceController::class, 'update'])
+        ->name('cash-advances.update');
 
     Route::get('holidays', [HolidayController::class, 'index'])->name('holidays.index');
     Route::post('holidays', [HolidayController::class, 'store'])->name('holidays.store');

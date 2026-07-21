@@ -2,10 +2,22 @@
 
 namespace App\Models;
 
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
+/**
+ * Attribute types produced by the casts below.
+ *
+ * @property-read CarbonImmutable|null $start_date
+ * @property-read CarbonImmutable|null $end_date
+ * @property-read CarbonImmutable|null $cutoff_date
+ * @property-read CarbonImmutable|null $process_start
+ * @property-read CarbonImmutable|null $process_end
+ * @property-read CarbonImmutable|null $payslip_release
+ * @property-read CarbonImmutable|null $payday
+ */
 class PayrollPeriod extends Model
 {
     protected $fillable = [

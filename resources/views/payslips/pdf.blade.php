@@ -313,13 +313,18 @@
                             @if ((float) $payslip->late_deduction > 0)
                                 <tr><td class="label">Late</td><td class="amount">{{ $peso($payslip->late_deduction) }}</td></tr>
                             @endif
+                                @if ((float) $payslip->undertime_deduction > 0)
+                                    <tr><td class="label">Undertime</td><td class="amount">{{ $peso($payslip->undertime_deduction) }}</td></tr>
+                                @endif
+                                    @if ((float) $payslip->absence_deduction > 0)
+                                        <tr><td class="label">Absences ($payslip->absent_days) ({{ $payslip->absent_days }})@endif</td><td class="amount">{{ $peso($payslip->absence_deduction) }}</td></tr>
+                                    @endif
                             @if ((float) $payslip->cash_advance_deduction > 0)
                                 <tr><td class="label">Cash Advance</td><td class="amount">{{ $peso($payslip->cash_advance_deduction) }}</td></tr>
                             @endif
                             <tr><td class="label">SSS</td><td class="amount">{{ $peso($payslip->sss) }}</td></tr>
                             <tr><td class="label">PhilHealth</td><td class="amount">{{ $peso($payslip->philhealth) }}</td></tr>
                             <tr><td class="label">Pag-IBIG</td><td class="amount">{{ $peso($payslip->pagibig) }}</td></tr>
-                            <tr><td class="label">Withholding Tax</td><td class="amount">{{ $peso($payslip->withholding_tax) }}</td></tr>
                         </table>
                         <div class="total-box total-deductions">
                             <table class="row">
@@ -418,13 +423,18 @@
                             @if ((float) $payslip->late_deduction > 0)
                                 <tr><td class="label">Late</td><td class="amount">{{ $peso($payslip->late_deduction) }}</td></tr>
                             @endif
+                                @if ((float) $payslip->undertime_deduction > 0)
+                                    <tr><td class="label">Undertime</td><td class="amount">{{ $peso($payslip->undertime_deduction) }}</td></tr>
+                                @endif
+                                    @if ((float) $payslip->absence_deduction > 0)
+                                        <tr><td class="label">Absences ($payslip->absent_days) ({{ $payslip->absent_days }})@endif</td><td class="amount">{{ $peso($payslip->absence_deduction) }}</td></tr>
+                                    @endif
                             @if ((float) $payslip->cash_advance_deduction > 0)
                                 <tr><td class="label">Cash Advance</td><td class="amount">{{ $peso($payslip->cash_advance_deduction) }}</td></tr>
                             @endif
                             <tr><td class="label">SSS</td><td class="amount">{{ $peso($payslip->sss) }}</td></tr>
                             <tr><td class="label">PhilHealth</td><td class="amount">{{ $peso($payslip->philhealth) }}</td></tr>
                             <tr><td class="label">Pag-IBIG</td><td class="amount">{{ $peso($payslip->pagibig) }}</td></tr>
-                            <tr><td class="label">Withholding Tax</td><td class="amount">{{ $peso($payslip->withholding_tax) }}</td></tr>
                         </table>
                         <div class="total-box total-deductions">
                             <table class="row">

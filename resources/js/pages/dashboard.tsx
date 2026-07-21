@@ -45,7 +45,6 @@ type PayslipPreview = {
     sss: number;
     philhealth: number;
     pagibig: number;
-    withholding_tax: number;
     total_earnings: number;
     total_deductions: number;
     net_pay: number;

@@ -1,12 +1,7 @@
 import { Head, useForm } from '@inertiajs/react';
 import { AlertTriangle } from 'lucide-react';
-
-type EmployeeOption = {
-    id: number;
-    employee_code: string;
-    first_name: string;
-    last_name: string;
-};
+import { EmployeeCombobox  } from '@/components/employee-combobox';
+import type {EmployeeOption} from '@/components/employee-combobox';
 
 type Log = {
     id: number;
@@ -59,20 +54,14 @@ export default function DtrIndex({ logs, employees, notice }: Props) {
                             form.post('/dtr');
                         }}
                     >
-                        <label className="text-sm">
+                        <div className="text-sm">
                             <span className="mb-1.5 block text-slate-600">Employee</span>
-                            <select
-                                className="w-full rounded-xl border border-slate-200 px-3 py-2.5"
+                            <EmployeeCombobox
+                                employees={employees}
                                 value={form.data.employee_id}
-                                onChange={(event) => form.setData('employee_id', event.target.value)}
-                            >
-                                {employees.map((employee) => (
-                                    <option key={employee.id} value={employee.id}>
-                                        {employee.employee_code} — {employee.first_name} {employee.last_name}
-                                    </option>
-                                ))}
-                            </select>
-                        </label>
+                                onChange={(id) => form.setData('employee_id', id)}
+                            />
+                        </div>
                         <label className="text-sm">
                             <span className="mb-1.5 block text-slate-600">Work Date</span>
                             <input

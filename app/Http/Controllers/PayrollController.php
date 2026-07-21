@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\PayrollAlreadyProcessed;
 use App\Models\PayrollPeriod;
 use App\Models\PayrollRun;
 use App\Models\Payslip;
@@ -84,11 +85,24 @@ class PayrollController extends Controller
     public function run(Request $request, PayrollCalculator $calculator): RedirectResponse
     {
         $period = PayrollPeriod::query()->findOrFail($request->integer('payroll_period_id'));
-        $run = $calculator->run($period);
 
-        return redirect()
-            ->route('payroll.show', $run)
-            ->with('success', "Payroll processed for {$period->name}.");
+        try {
+            $run = $calculator->run($period);
+        } catch (PayrollAlreadyProcessed $exception) {
+            Inertia::flash('toast', [
+                'type' => 'error',
+                'message' => $exception->getMessage().' Showing the existing payslips instead.',
+            ]);
+
+            return redirect()->route('payroll.show', $exception->run);
+        }
+
+        Inertia::flash('toast', [
+            'type' => 'success',
+            'message' => "Payroll processed for {$period->name}.",
+        ]);
+
+        return redirect()->route('payroll.show', $run);
     }
 
     public function show(PayrollRun $payroll): Response
@@ -119,11 +133,12 @@ class PayrollController extends Controller
                 'thirteenth_month' => (float) $payslip->thirteenth_month,
                 'late_deduction' => (float) $payslip->late_deduction,
                 'undertime_deduction' => (float) $payslip->undertime_deduction,
+                'absence_deduction' => (float) $payslip->absence_deduction,
+                'absent_days' => (int) $payslip->absent_days,
                 'cash_advance_deduction' => (float) $payslip->cash_advance_deduction,
                 'sss' => (float) $payslip->sss,
                 'philhealth' => (float) $payslip->philhealth,
                 'pagibig' => (float) $payslip->pagibig,
-                'withholding_tax' => (float) $payslip->withholding_tax,
                 'total_earnings' => (float) $payslip->total_earnings,
                 'total_deductions' => (float) $payslip->total_deductions,
                 'net_pay' => (float) $payslip->net_pay,

@@ -129,7 +129,6 @@ class DashboardController extends Controller
                 'sss' => (float) $samplePayslip->sss,
                 'philhealth' => (float) $samplePayslip->philhealth,
                 'pagibig' => (float) $samplePayslip->pagibig,
-                'withholding_tax' => (float) $samplePayslip->withholding_tax,
                 'total_earnings' => (float) $samplePayslip->total_earnings,
                 'total_deductions' => (float) $samplePayslip->total_deductions,
                 'net_pay' => (float) $samplePayslip->net_pay,

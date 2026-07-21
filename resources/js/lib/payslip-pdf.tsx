@@ -20,11 +20,12 @@ export type PayslipPdfData = {
     thirteenth_month: number;
     late_deduction: number;
     undertime_deduction: number;
+    absence_deduction: number;
+    absent_days: number;
     cash_advance_deduction: number;
     sss: number;
     philhealth: number;
     pagibig: number;
-    withholding_tax: number;
     total_earnings: number;
     total_deductions: number;
     net_pay: number;
@@ -309,6 +310,14 @@ function Amounts({ payslip }: { payslip: PayslipPdfData }) {
                     <View style={styles.row}>
                         <Text style={styles.rowLabel}>Undertime</Text>
                         <Text style={styles.rowAmount}>{peso(payslip.undertime_deduction)}</Text>
+                    </View>
+                )}
+                {payslip.absence_deduction > 0 && (
+                    <View style={styles.row}>
+                        <Text style={styles.rowLabel}>
+                            Absences{payslip.absent_days > 0 ? ` (${payslip.absent_days})` : ''}
+                        </Text>
+                        <Text style={styles.rowAmount}>{peso(payslip.absence_deduction)}</Text>
                     </View>
                 )}
                 {payslip.cash_advance_deduction > 0 && (

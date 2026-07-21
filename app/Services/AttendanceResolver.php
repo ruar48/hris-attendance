@@ -31,10 +31,6 @@ class AttendanceResolver
         foreach ($employees as $employee) {
             foreach (CarbonPeriod::create($start, $end) as $day) {
                 /** @var CarbonInterface $day */
-                if ($day->isWeekend() && ! $day->isSunday()) {
-                    continue;
-                }
-
                 // Nothing to resolve after someone's last working day.
                 if ($employee->last_working_day !== null && $day->gt($employee->last_working_day)) {
                     continue;
@@ -55,8 +51,10 @@ class AttendanceResolver
         $date = Carbon::parse($date);
         $resolved = $this->fromBiometric($employee, $date);
 
-        if ($resolved === null) {
-            $resolved = $this->fromDtrFallback($employee, $date);
+        // The DTR fallback also covers a half-captured biometric day, which is
+        // exactly the case HR files a correction for.
+        if ($resolved === null || $resolved['time_in'] === null || $resolved['time_out'] === null) {
+            $resolved = $this->fromDtrFallback($employee, $date) ?? $resolved;
         }
 
         if ($resolved === null) {
@@ -71,39 +69,94 @@ class AttendanceResolver
         $otMultiplier = PayrollSetting::float('ot_rate_multiplier');
         $holidayMultiplier = PayrollSetting::float('holiday_pay_multiplier');
 
+        $isSunday = $date->isSunday();
+        $isHoliday = $holiday !== null;
+
+        // A day is only payable when BOTH punches are present. A lone punch
+        // cannot tell us when the person arrived or left, so rather than guess
+        // (and charge a phantom full-day lateness, or let a half day go free)
+        // the day is flagged for HR to correct through the DTR fallback.
+        if ($resolved['time_in'] === null || $resolved['time_out'] === null) {
+            return $this->persist($employee, $date, [
+                'time_in' => $resolved['time_in'],
+                'time_out' => $resolved['time_out'],
+                'source' => $resolved['source'],
+                'is_incomplete' => true,
+                'worked_minutes' => 0,
+                'late_minutes' => 0,
+                'undertime_minutes' => 0,
+                'ot_minutes' => 0,
+                'is_holiday' => $isHoliday,
+                'is_sunday' => $isSunday,
+                'holiday_pay' => 0,
+                'sunday_pay' => 0,
+                'ot_pay' => 0,
+                'late_deduction' => 0,
+                'undertime_deduction' => 0,
+            ]);
+        }
+
+        $shiftMinutes = max(1, $this->minutesBetween($shiftStart, $shiftEnd));
+        $workedMinutes = max(0, $this->minutesBetween($resolved['time_in'], $resolved['time_out']));
+
         $lateMinutes = $this->calculateLateMinutes($resolved['time_in'], $shiftStart, $graceMinutes);
+        // Lateness can never exceed the shift itself.
+        $lateMinutes = min($lateMinutes, $shiftMinutes);
+
         $undertimeMinutes = $this->calculateUndertimeMinutes(
             $resolved['time_out'],
             $shiftEnd,
             $undertimeGraceMinutes
         );
+        $undertimeMinutes = min($undertimeMinutes, $shiftMinutes);
+
         $rawOtMinutes = $this->minutesBeyond($resolved['time_out'], $shiftEnd);
 
         // OT only counts once worked time beyond shift end reaches the minimum threshold.
         $otMinutes = $rawOtMinutes >= $otMinimumMinutes ? $rawOtMinutes : 0;
 
-        $isSunday = $date->isSunday();
-        $isHoliday = $holiday !== null;
-        $hourly = $this->resolveHourlyRate($employee);
+        // Deductions are charged at the employee's own hourly rate. The OT rate
+        // setting deliberately does not apply here — it must never reprice a
+        // late or undertime deduction.
+        $hourly = $this->deductionHourlyRate($employee);
+        $otHourly = $this->overtimeHourlyRate($employee);
+
+        // The share of the shift actually worked, used to prorate flat premiums.
+        $workedShare = min(1.0, $workedMinutes / $shiftMinutes);
 
         $holidayPay = 0.0;
         if ($isHoliday) {
-            $multiplier = (float) ($holiday->pay_multiplier ?? $holidayMultiplier);
-            $holidayPay = round((float) $employee->daily_rate * max(0, $multiplier - 1), 2);
+            $multiplier = $this->holidayMultiplier($holiday, $holidayMultiplier);
+            $holidayPay = round((float) $employee->daily_rate * max(0, $multiplier - 1) * $workedShare, 2);
         }
 
-        $sundayPay = $isSunday ? $this->resolveSundayRouteAmount($employee) : 0.0;
-        $otPay = round(($otMinutes / 60) * $hourly * $otMultiplier, 2);
+        $sundayPay = $isSunday
+            ? round($this->resolveSundayRouteAmount($employee) * $workedShare, 2)
+            : 0.0;
+
+        // A holiday that lands on a Sunday pays the better of the two premiums,
+        // never both stacked on top of each other.
+        if ($isHoliday && $isSunday) {
+            $holidayPay = max($holidayPay, $sundayPay);
+            $sundayPay = 0.0;
+        }
+
+        $otPay = round(($otMinutes / 60) * $otHourly * $otMultiplier, 2);
         $lateDeduction = round(($lateMinutes / 60) * $hourly, 2);
-        $billableUndertime = $this->billableUndertimeMinutes($undertimeMinutes);
+
+        // Store the minutes actually charged so the payslip reconciles against
+        // the stored figure under every rounding mode.
+        $billableUndertime = min($this->billableUndertimeMinutes($undertimeMinutes), $shiftMinutes);
         $undertimeDeduction = round(($billableUndertime / 60) * $hourly, 2);
 
         $attributes = [
             'time_in' => $resolved['time_in'],
             'time_out' => $resolved['time_out'],
             'source' => $resolved['source'],
+            'is_incomplete' => false,
+            'worked_minutes' => $workedMinutes,
             'late_minutes' => $lateMinutes,
-            'undertime_minutes' => $undertimeMinutes,
+            'undertime_minutes' => $billableUndertime,
             'ot_minutes' => $otMinutes,
             'is_holiday' => $isHoliday,
             'is_sunday' => $isSunday,
@@ -114,6 +167,14 @@ class AttendanceResolver
             'undertime_deduction' => $undertimeDeduction,
         ];
 
+        return $this->persist($employee, $date, $attributes);
+    }
+
+    /**
+     * @param  array<string, mixed>  $attributes
+     */
+    protected function persist(Employee $employee, Carbon $date, array $attributes): AttendanceRecord
+    {
         $record = AttendanceRecord::query()
             ->where('employee_id', $employee->id)
             ->whereDate('work_date', $date->toDateString())
@@ -132,35 +193,69 @@ class AttendanceResolver
         ]);
     }
 
-    protected function resolveHourlyRate(Employee $employee): float
+    /**
+     * Rate used for late and undertime deductions — always the employee's own.
+     */
+    protected function deductionHourlyRate(Employee $employee): float
+    {
+        $hourly = (float) $employee->hourly_rate;
+
+        if ($hourly > 0) {
+            return $hourly;
+        }
+
+        // Fallback: monthly basic over the configured working days and shift hours.
+        return round(((float) $employee->basic_salary) / 22 / 8, 2);
+    }
+
+    /**
+     * Rate used for overtime, which may be overridden in payroll settings.
+     */
+    protected function overtimeHourlyRate(Employee $employee): float
     {
         if (! PayrollSetting::bool('ot_use_employee_hourly')) {
             $fixed = PayrollSetting::float('ot_fixed_hourly_rate');
+
             if ($fixed > 0) {
                 return $fixed;
             }
         }
 
-        $hourly = (float) $employee->hourly_rate;
-        if ($hourly > 0) {
-            return $hourly;
-        }
+        return $this->deductionHourlyRate($employee);
+    }
 
-        // Fallback: basic monthly / 22 days / 8 hours
-        return round(((float) $employee->basic_salary) / 22 / 8, 2);
+    /**
+     * A holiday's own multiplier wins, but only when it is a usable one —
+     * a stored 0 must not silently wipe out the premium.
+     */
+    protected function holidayMultiplier(?Holiday $holiday, float $default): float
+    {
+        $own = $holiday?->pay_multiplier === null ? 0.0 : (float) $holiday->pay_multiplier;
+
+        return $own > 0 ? $own : $default;
     }
 
     protected function resolveSundayRouteAmount(Employee $employee): float
     {
-        if (PayrollSetting::bool('sunday_route_use_employee_rate') && (float) $employee->sunday_route_rate > 0) {
+        if (PayrollSetting::bool('sunday_route_use_employee_rate')) {
+            // Route pay is per-employee: someone with no route rate is not a
+            // route driver and must not collect the default amount.
             return (float) $employee->sunday_route_rate;
         }
 
         return PayrollSetting::float('sunday_route_default_amount');
     }
 
+    protected function minutesBetween(string $from, string $to): int
+    {
+        $start = Carbon::createFromFormat('H:i:s', $this->normalizeTime($from));
+        $end = Carbon::createFromFormat('H:i:s', $this->normalizeTime($to));
+
+        return (int) $start->diffInMinutes($end, false);
+    }
+
     /**
-     * @return array{time_in: string, time_out: string|null, source: string}|null
+     * @return array{time_in: string|null, time_out: string|null, source: string}|null
      */
     protected function fromBiometric(Employee $employee, Carbon $date): ?array
     {
@@ -174,19 +269,20 @@ class AttendanceResolver
             return null;
         }
 
-        $timeIn = $logs->firstWhere('punch_type', 'in') ?? $logs->first();
-        $timeOut = $logs->where('punch_type', 'out')->last()
-            ?? ($logs->count() > 1 ? $logs->last() : null);
+        // Only a real "in" punch may set time_in. Falling back to the first log
+        // of the day turns a lone evening out-punch into a 9-hour lateness.
+        $timeIn = $logs->firstWhere('punch_type', 'in');
+        $timeOut = $logs->where('punch_type', 'out')->last();
 
         return [
-            'time_in' => $timeIn->punched_at->format('H:i:s'),
+            'time_in' => $timeIn?->punched_at->format('H:i:s'),
             'time_out' => $timeOut?->punched_at->format('H:i:s'),
             'source' => 'biometric',
         ];
     }
 
     /**
-     * @return array{time_in: string, time_out: string|null, source: string}|null
+     * @return array{time_in: string|null, time_out: string|null, source: string}|null
      */
     protected function fromDtrFallback(Employee $employee, Carbon $date): ?array
     {

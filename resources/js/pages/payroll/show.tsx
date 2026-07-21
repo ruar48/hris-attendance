@@ -135,6 +135,14 @@ export default function PayrollShow({ run, payslips }: Props) {
                                                 value={payslip.undertime_deduction}
                                             />
                                             <Line
+                                                label={
+                                                    payslip.absent_days > 0
+                                                        ? `Absences (${payslip.absent_days})`
+                                                        : 'Absences'
+                                                }
+                                                value={payslip.absence_deduction}
+                                            />
+                                            <Line
                                                 label="Cash Advance"
                                                 value={payslip.cash_advance_deduction}
                                             />

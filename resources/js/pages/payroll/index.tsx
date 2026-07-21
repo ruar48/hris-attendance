@@ -207,16 +207,21 @@ export default function PayrollIndex({ filters, years, summary, periods }: Props
                                                 <div className="flex justify-end gap-2">
                                                     <button
                                                         type="button"
-                                                        title="Re-run payroll for this cutoff"
+                                                        disabled={period.status === 'completed'}
+                                                        title={
+                                                            period.status === 'completed'
+                                                                ? 'Already processed — a cutoff can only be run once'
+                                                                : 'Run payroll for this cutoff'
+                                                        }
                                                         onClick={() =>
                                                             router.post('/payroll/run', {
                                                                 payroll_period_id: period.id,
                                                             })
                                                         }
-                                                        className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700"
+                                                        className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
                                                     >
                                                         <Play className="size-3.5" />
-                                                        Run
+                                                        {period.status === 'completed' ? 'Processed' : 'Run'}
                                                     </button>
                                                     {period.latest_run && (
                                                         <button

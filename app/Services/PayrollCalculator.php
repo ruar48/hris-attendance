@@ -2,14 +2,18 @@
 
 namespace App\Services;
 
+use App\Exceptions\PayrollAlreadyProcessed;
 use App\Models\AttendanceRecord;
 use App\Models\CashAdvance;
 use App\Models\Employee;
+use App\Models\Holiday;
 use App\Models\PayrollPeriod;
 use App\Models\PayrollRun;
 use App\Models\PayrollSetting;
 use App\Models\Payslip;
 use App\Models\SystemNotification;
+use Carbon\CarbonInterface;
+use Carbon\CarbonPeriod;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -24,6 +28,8 @@ class PayrollCalculator
 
     public function run(PayrollPeriod $period, bool $syncAttendance = true): PayrollRun
     {
+        $this->guardAgainstReprocessing($period);
+
         return DB::transaction(function () use ($period, $syncAttendance) {
             if ($this->isThirteenthMonthPeriod($period)) {
                 return $this->runThirteenthMonthPeriod($period);
@@ -81,6 +87,24 @@ class PayrollCalculator
     }
 
     /**
+     * A cutoff may only be processed once. Re-running would issue a second set
+     * of payslips and collect another cash advance instalment.
+     *
+     * @throws PayrollAlreadyProcessed
+     */
+    protected function guardAgainstReprocessing(PayrollPeriod $period): void
+    {
+        $existing = $period->runs()
+            ->where('status', 'completed')
+            ->latest('id')
+            ->first();
+
+        if ($existing) {
+            throw new PayrollAlreadyProcessed($period, $existing);
+        }
+    }
+
+    /**
      * December 2nd kinsena (16–end) triggers the separate 13th-month payslip.
      */
     protected function isThirteenthMonthCutoff(PayrollPeriod $period): bool
@@ -89,8 +113,19 @@ class PayrollCalculator
             return false;
         }
 
-        return (int) $period->month === 12
-            && (int) ($period->half ?? 1) === 2;
+        // Instalments are released after the 2nd cutoff of the month.
+        if ((int) ($period->half ?? 1) !== 2) {
+            return false;
+        }
+
+        $month = (int) $period->month;
+
+        if ($month === 12) {
+            return true;
+        }
+
+        return PayrollSetting::bool('thirteenth_month_split')
+            && $month === PayrollSetting::int('thirteenth_month_first_month');
     }
 
     public function isThirteenthMonthPeriod(PayrollPeriod $period): bool
@@ -111,16 +146,18 @@ class PayrollCalculator
     protected function resolveThirteenthMonthPeriod(PayrollPeriod $sourcePeriod): PayrollPeriod
     {
         $year = (int) $sourcePeriod->year;
+        $month = (int) $sourcePeriod->month;
         $end = $sourcePeriod->end_date?->toDateString() ?? "{$year}-12-31";
+        $label = $month === 12 ? '13th Month Pay' : '13th Month Pay (1st release)';
 
         return PayrollPeriod::query()->updateOrCreate(
             [
                 'year' => $year,
-                'month' => 12,
+                'month' => $month,
                 'half' => self::THIRTEENTH_MONTH_HALF,
             ],
             [
-                'name' => "{$year} 13th Month Pay",
+                'name' => "{$year} {$label}",
                 'start_date' => $end,
                 'end_date' => $end,
                 'cutoff_date' => $end,
@@ -191,7 +228,22 @@ class PayrollCalculator
         $lateDeduction = (float) $attendance->sum('late_deduction');
         $undertimeDeduction = (float) $attendance->sum('undertime_deduction');
 
-        $cashAdvanceDeduction = $this->deductCashAdvance($employee);
+        $absence = $this->absenceDeduction($employee, $period, $basicPay, $attendance);
+
+        // Time-based deductions can never take more than the basic left after
+        // absences — you cannot lose more time than you were paid for.
+        $timeBudget = max(0.0, round($basicPay - $absence['amount'], 2));
+        $timeDeductions = round($lateDeduction + $undertimeDeduction, 2);
+
+        if ($timeDeductions > $timeBudget) {
+            // Trim the later line first so the printed lines still add up.
+            $undertimeDeduction = max(0.0, round($timeBudget - $lateDeduction, 2));
+            $lateDeduction = min($lateDeduction, $timeBudget);
+            $timeDeductions = round($lateDeduction + $undertimeDeduction, 2);
+        }
+
+        // Contributions are based on the full basic — a single absent day does
+        // not change an employee's contribution bracket.
         $gov = $this->governmentBenefits($basicPay);
 
         $totalEarnings = round(
@@ -199,31 +251,46 @@ class PayrollCalculator
             2
         );
 
-        $totalDeductions = round(
-            $lateDeduction
-            + $undertimeDeduction
-            + $cashAdvanceDeduction
+        // ...but nothing can be withheld from pay that was never earned, so
+        // trim the contributions to whatever the payslip can actually bear.
+        $gov = $this->capContributions(
+            $gov,
+            max(0.0, round($totalEarnings - $timeDeductions - $absence['amount'], 2))
+        );
+
+        // Mandatory deductions come first; the cash advance may only take what
+        // is left, so a payslip can never go negative. Anything it cannot
+        // collect this run stays on the balance for the next one.
+        $mandatory = round(
+            $timeDeductions
+            + $absence['amount']
             + $gov['sss']
             + $gov['philhealth']
             + $gov['pagibig'],
             2
         );
 
+        $collectible = max(0.0, round($totalEarnings - $mandatory, 2));
+        $cashAdvanceDeduction = $this->deductCashAdvance($employee, $collectible);
+
+        $totalDeductions = round($mandatory + $cashAdvanceDeduction, 2);
+
         return Payslip::query()->create([
             'payroll_run_id' => $run->id,
             'employee_id' => $employee->id,
             'basic_pay' => $basicPay,
+            'absent_days' => $absence['days'],
             'holiday_pay' => $holidayPay,
             'sunday_route' => $sundayRoute,
             'overtime_pay' => $overtimePay,
             'thirteenth_month' => 0,
             'late_deduction' => $lateDeduction,
             'undertime_deduction' => $undertimeDeduction,
+            'absence_deduction' => $absence['amount'],
             'cash_advance_deduction' => $cashAdvanceDeduction,
             'sss' => $gov['sss'],
             'philhealth' => $gov['philhealth'],
             'pagibig' => $gov['pagibig'],
-            'withholding_tax' => 0,
             'total_earnings' => $totalEarnings,
             'total_deductions' => $totalDeductions,
             'net_pay' => round($totalEarnings - $totalDeductions, 2),
@@ -251,7 +318,6 @@ class PayrollCalculator
             'sss' => 0,
             'philhealth' => 0,
             'pagibig' => 0,
-            'withholding_tax' => 0,
             'total_earnings' => $thirteenthMonth,
             'total_deductions' => 0,
             'net_pay' => $thirteenthMonth,
@@ -282,6 +348,68 @@ class PayrollCalculator
     }
 
     /**
+     * Deduct a day's pay for every scheduled working day the employee did not
+     * work. Basic pay is a flat half-month figure, so a day is worth
+     * basicPay / scheduled working days in the cutoff.
+     *
+     * Scheduled days are Mon–Sat excluding Sundays and holidays. A day counts
+     * as worked only when it has a usable attendance record — a day flagged
+     * incomplete (a missing punch) is not proof of work until HR corrects it.
+     *
+     * @param  Collection<int, AttendanceRecord>  $attendance
+     * @return array{days: int, amount: float}
+     */
+    protected function absenceDeduction(
+        Employee $employee,
+        PayrollPeriod $period,
+        float $basicPay,
+        Collection $attendance
+    ): array {
+        if ($basicPay <= 0) {
+            return ['days' => 0, 'amount' => 0.0];
+        }
+
+        $holidays = Holiday::mapForPeriod($period->start_date, $period->end_date);
+
+        $workedDates = $attendance
+            ->where('is_incomplete', false)
+            ->map(fn (AttendanceRecord $record) => $record->work_date->toDateString())
+            ->all();
+
+        $lastDay = $employee->last_working_day;
+        $scheduled = 0;
+        $absent = 0;
+
+        foreach (CarbonPeriod::create($period->start_date, $period->end_date) as $day) {
+            /** @var CarbonInterface $day */
+            if ($day->isSunday() || $holidays->has($day->toDateString())) {
+                continue;
+            }
+
+            // Days after someone left are not theirs to be absent for; their
+            // basic pay is already prorated for those.
+            if ($lastDay !== null && $day->gt($lastDay)) {
+                continue;
+            }
+
+            $scheduled++;
+
+            if (! in_array($day->toDateString(), $workedDates, true)) {
+                $absent++;
+            }
+        }
+
+        if ($scheduled === 0 || $absent === 0) {
+            return ['days' => 0, 'amount' => 0.0];
+        }
+
+        // Never deduct more than the basic pay itself.
+        $amount = min($basicPay, round($basicPay / $scheduled * $absent, 2));
+
+        return ['days' => $absent, 'amount' => $amount];
+    }
+
+    /**
      * PH 13th month = (total basic salary earned in the calendar year) / 12.
      * Sums regular payslips only (excludes the 13th-month slip itself).
      */
@@ -291,18 +419,37 @@ class PayrollCalculator
 
         $totalBasic = (float) Payslip::query()
             ->where('employee_id', $employee->id)
+            ->whereHas('payrollRun', fn ($query) => $query->where('status', 'completed'))
             ->whereHas('payrollRun.period', function ($query) use ($year) {
                 $query->where('year', $year)
                     ->where('half', '!=', self::THIRTEENTH_MONTH_HALF);
             })
             ->sum('basic_pay');
 
-        return round($totalBasic / $divisor, 2);
+        $entitlement = round($totalBasic / $divisor, 2);
+
+        // The 13th month may be released in instalments (commonly half at
+        // mid-year, the rest in December). Each payout settles whatever is
+        // still owed, so the year always totals the full entitlement.
+        $alreadyPaid = (float) Payslip::query()
+            ->where('employee_id', $employee->id)
+            ->whereHas('payrollRun', fn ($query) => $query->where('status', 'completed'))
+            ->whereHas('payrollRun.period', function ($query) use ($year) {
+                $query->where('year', $year)
+                    ->where('half', self::THIRTEENTH_MONTH_HALF);
+            })
+            ->sum('thirteenth_month');
+
+        return max(0.0, round($entitlement - $alreadyPaid, 2));
     }
 
-    protected function deductCashAdvance(Employee $employee): float
+    /**
+     * @param  float  $collectible  Pay left after mandatory deductions. The
+     *                              advance may not take more than this.
+     */
+    protected function deductCashAdvance(Employee $employee, float $collectible): float
     {
-        if (! PayrollSetting::bool('cash_advance_auto_deduct')) {
+        if (! PayrollSetting::bool('cash_advance_auto_deduct') || $collectible <= 0) {
             return 0.0;
         }
 
@@ -316,8 +463,13 @@ class PayrollCalculator
             return 0.0;
         }
 
-        $maxPerPayroll = round(PayrollSetting::float('cash_advance_max_deduction') / 2, 2);
-        $deduction = min((float) $advance->balance, $maxPerPayroll);
+        // Per-advance instalment if one was set, otherwise the settings default,
+        // capped by the balance and by what this payslip can actually afford.
+        $deduction = min(
+            (float) $advance->balance,
+            $advance->instalmentPerPayroll(),
+            $collectible
+        );
         $newBalance = round((float) $advance->balance - $deduction, 2);
 
         $advance->update([
@@ -326,6 +478,37 @@ class PayrollCalculator
         ]);
 
         return $deduction;
+    }
+
+    /**
+     * Reduce contributions so their total fits the pay available, trimming the
+     * flat Pag-IBIG first and SSS last. Without this a period with no earnings
+     * would still withhold and drive the payslip negative.
+     *
+     * @param  array{sss: float, philhealth: float, pagibig: float}  $gov
+     * @return array{sss: float, philhealth: float, pagibig: float}
+     */
+    protected function capContributions(array $gov, float $available): array
+    {
+        $total = round($gov['sss'] + $gov['philhealth'] + $gov['pagibig'], 2);
+
+        if ($total <= $available) {
+            return $gov;
+        }
+
+        foreach (['pagibig', 'philhealth', 'sss'] as $key) {
+            $excess = round($total - $available, 2);
+
+            if ($excess <= 0) {
+                break;
+            }
+
+            $trim = min($gov[$key], $excess);
+            $gov[$key] = round($gov[$key] - $trim, 2);
+            $total = round($total - $trim, 2);
+        }
+
+        return $gov;
     }
 
     /**

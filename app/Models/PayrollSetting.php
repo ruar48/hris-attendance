@@ -55,6 +55,10 @@ class PayrollSetting extends Model
             // 13th month
             'auto_13th_month' => '1',
             'thirteenth_month_divisor' => '12', // total basic earned in the year ÷ this
+            // Release the 13th month in two instalments rather than all in
+            // December. The first lands after the 2nd cutoff of the month below.
+            'thirteenth_month_split' => '1',
+            'thirteenth_month_first_month' => '6', // June
         ];
     }
 

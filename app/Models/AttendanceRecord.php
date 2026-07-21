@@ -13,6 +13,8 @@ class AttendanceRecord extends Model
         'time_in',
         'time_out',
         'source',
+        'is_incomplete',
+        'worked_minutes',
         'late_minutes',
         'undertime_minutes',
         'ot_minutes',
@@ -29,6 +31,7 @@ class AttendanceRecord extends Model
     {
         return [
             'work_date' => 'date',
+            'is_incomplete' => 'boolean',
             'is_holiday' => 'boolean',
             'is_sunday' => 'boolean',
             'holiday_pay' => 'decimal:2',
