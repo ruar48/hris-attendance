@@ -103,7 +103,11 @@ export default function PayrollShow({ run, payslips }: Props) {
                                 </tr>
                             </thead>
                             <tbody>
-                                {payslips.map((payslip) => (
+                                {payslips.map((payslip) => {
+                                    const isThirteenthMonth =
+                                        payslip.thirteenth_month > 0 && payslip.basic_pay === 0;
+
+                                    return (
                                     <tr
                                         key={payslip.id}
                                         className="border-b border-slate-100 align-top last:border-0"
@@ -129,29 +133,44 @@ export default function PayrollShow({ run, payslips }: Props) {
                                             </div>
                                         </td>
                                         <td className="px-4 py-4 text-slate-600">
-                                            <Line label="Late" value={payslip.late_deduction} />
-                                            <Line
-                                                label="Undertime"
-                                                value={payslip.undertime_deduction}
-                                            />
-                                            <Line
-                                                label={
-                                                    payslip.absent_days > 0
-                                                        ? `Absences (${payslip.absent_days})`
-                                                        : 'Absences'
-                                                }
-                                                value={payslip.absence_deduction}
-                                            />
-                                            <Line
-                                                label="Cash Advance"
-                                                value={payslip.cash_advance_deduction}
-                                            />
-                                            <Line label="SSS" value={payslip.sss} />
-                                            <Line label="PhilHealth" value={payslip.philhealth} />
-                                            <Line label="Pag-IBIG" value={payslip.pagibig} />
-                                            <div className="mt-1 font-medium text-slate-800">
-                                                {formatPeso(payslip.total_deductions)}
-                                            </div>
+                                            {isThirteenthMonth ? (
+                                                <span className="text-slate-400">—</span>
+                                            ) : (
+                                                <>
+                                                    <DeductionLine
+                                                        label="Late"
+                                                        value={payslip.late_deduction}
+                                                    />
+                                                    <DeductionLine
+                                                        label="Undertime"
+                                                        value={payslip.undertime_deduction}
+                                                    />
+                                                    <DeductionLine
+                                                        label={
+                                                            payslip.absent_days > 0
+                                                                ? `Absences (${payslip.absent_days})`
+                                                                : 'Absences'
+                                                        }
+                                                        value={payslip.absence_deduction}
+                                                    />
+                                                    <DeductionLine
+                                                        label="Cash Advance"
+                                                        value={payslip.cash_advance_deduction}
+                                                    />
+                                                    <DeductionLine label="SSS" value={payslip.sss} />
+                                                    <DeductionLine
+                                                        label="PhilHealth"
+                                                        value={payslip.philhealth}
+                                                    />
+                                                    <DeductionLine
+                                                        label="Pag-IBIG"
+                                                        value={payslip.pagibig}
+                                                    />
+                                                    <div className="mt-1 font-medium text-slate-800">
+                                                        {formatPeso(payslip.total_deductions)}
+                                                    </div>
+                                                </>
+                                            )}
                                         </td>
                                         <td className="px-4 py-4 text-lg font-semibold text-emerald-600">
                                             {formatPeso(payslip.net_pay)}
@@ -173,7 +192,8 @@ export default function PayrollShow({ run, payslips }: Props) {
                                             </button>
                                         </td>
                                     </tr>
-                                ))}
+                                    );
+                                })}
                             </tbody>
                         </table>
                     </div>
@@ -205,6 +225,15 @@ function Line({ label, value }: { label: string; value: number }) {
         return null;
     }
 
+    return (
+        <div className="flex justify-between gap-4 text-xs">
+            <span>{label}</span>
+            <span>{formatPeso(value)}</span>
+        </div>
+    );
+}
+
+function DeductionLine({ label, value }: { label: string; value: number }) {
     return (
         <div className="flex justify-between gap-4 text-xs">
             <span>{label}</span>

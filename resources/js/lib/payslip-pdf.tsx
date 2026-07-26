@@ -300,44 +300,55 @@ function Amounts({ payslip }: { payslip: PayslipPdfData }) {
 
             <View style={styles.col}>
                 <Text style={[styles.sectionTitle, styles.deductionsTitle]}>Deductions</Text>
-                {payslip.late_deduction > 0 && (
-                    <View style={styles.row}>
-                        <Text style={styles.rowLabel}>Late</Text>
-                        <Text style={styles.rowAmount}>{peso(payslip.late_deduction)}</Text>
-                    </View>
+                {payslip.thirteenth_month > 0 && payslip.basic_pay === 0 ? (
+                    <Text style={styles.rowLabel}>—</Text>
+                ) : (
+                    <>
+                        {payslip.late_deduction > 0 && (
+                            <View style={styles.row}>
+                                <Text style={styles.rowLabel}>Late</Text>
+                                <Text style={styles.rowAmount}>{peso(payslip.late_deduction)}</Text>
+                            </View>
+                        )}
+                        {payslip.undertime_deduction > 0 && (
+                            <View style={styles.row}>
+                                <Text style={styles.rowLabel}>Undertime</Text>
+                                <Text style={styles.rowAmount}>
+                                    {peso(payslip.undertime_deduction)}
+                                </Text>
+                            </View>
+                        )}
+                        {payslip.absence_deduction > 0 && (
+                            <View style={styles.row}>
+                                <Text style={styles.rowLabel}>
+                                    Absences
+                                    {payslip.absent_days > 0 ? ` (${payslip.absent_days})` : ''}
+                                </Text>
+                                <Text style={styles.rowAmount}>
+                                    {peso(payslip.absence_deduction)}
+                                </Text>
+                            </View>
+                        )}
+                        <View style={styles.row}>
+                            <Text style={styles.rowLabel}>Cash Advance</Text>
+                            <Text style={styles.rowAmount}>
+                                {peso(payslip.cash_advance_deduction)}
+                            </Text>
+                        </View>
+                        <View style={styles.row}>
+                            <Text style={styles.rowLabel}>SSS</Text>
+                            <Text style={styles.rowAmount}>{peso(payslip.sss)}</Text>
+                        </View>
+                        <View style={styles.row}>
+                            <Text style={styles.rowLabel}>PhilHealth</Text>
+                            <Text style={styles.rowAmount}>{peso(payslip.philhealth)}</Text>
+                        </View>
+                        <View style={styles.row}>
+                            <Text style={styles.rowLabel}>Pag-IBIG</Text>
+                            <Text style={styles.rowAmount}>{peso(payslip.pagibig)}</Text>
+                        </View>
+                    </>
                 )}
-                {payslip.undertime_deduction > 0 && (
-                    <View style={styles.row}>
-                        <Text style={styles.rowLabel}>Undertime</Text>
-                        <Text style={styles.rowAmount}>{peso(payslip.undertime_deduction)}</Text>
-                    </View>
-                )}
-                {payslip.absence_deduction > 0 && (
-                    <View style={styles.row}>
-                        <Text style={styles.rowLabel}>
-                            Absences{payslip.absent_days > 0 ? ` (${payslip.absent_days})` : ''}
-                        </Text>
-                        <Text style={styles.rowAmount}>{peso(payslip.absence_deduction)}</Text>
-                    </View>
-                )}
-                {payslip.cash_advance_deduction > 0 && (
-                    <View style={styles.row}>
-                        <Text style={styles.rowLabel}>Cash Advance</Text>
-                        <Text style={styles.rowAmount}>{peso(payslip.cash_advance_deduction)}</Text>
-                    </View>
-                )}
-                <View style={styles.row}>
-                    <Text style={styles.rowLabel}>SSS</Text>
-                    <Text style={styles.rowAmount}>{peso(payslip.sss)}</Text>
-                </View>
-                <View style={styles.row}>
-                    <Text style={styles.rowLabel}>PhilHealth</Text>
-                    <Text style={styles.rowAmount}>{peso(payslip.philhealth)}</Text>
-                </View>
-                <View style={styles.row}>
-                    <Text style={styles.rowLabel}>Pag-IBIG</Text>
-                    <Text style={styles.rowAmount}>{peso(payslip.pagibig)}</Text>
-                </View>
                 <View style={[styles.totalBox, styles.totalDeductions]}>
                     <Text>Total Deductions</Text>
                     <Text>{peso(payslip.total_deductions)}</Text>

@@ -346,11 +346,12 @@ export default function PayrollSettingsPage({ settings }: Props) {
                             />
                             <span>
                                 <span className="font-semibold text-slate-800">
-                                    Auto-issue 13th month as a separate payslip
+                                    Auto-issue 13th month as separate payslips
                                 </span>
                                 <span className="mt-0.5 block text-slate-500">
-                                    After December 2nd kinsena. Not combined with that cutoff’s
-                                    salary payslip.
+                                    Split in two every 6 months: 1st half after June 2nd kinsena,
+                                    2nd half after December 2nd kinsena. No deductions on 13th
+                                    month payslips.
                                 </span>
                             </span>
                         </label>

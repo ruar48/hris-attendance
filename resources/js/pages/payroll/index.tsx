@@ -3,7 +3,7 @@ import { CalendarDays, Eye, Play, Users, Wallet } from 'lucide-react';
 import { formatPeso } from '@/lib/money';
 import { cn } from '@/lib/utils';
 
-type PeriodType = '1st_kinsena' | '2nd_kinsena' | '13th_month';
+type PeriodType = '1st_kinsena' | '2nd_kinsena' | '13th_month_1st' | '13th_month_2nd';
 
 type Period = {
     id: number;
@@ -16,6 +16,7 @@ type Period = {
     cutoff_date: string | null;
     payday: string | null;
     is_thirteenth_month: boolean;
+    thirteenth_installment: 1 | 2 | null;
     half: number;
     type: PeriodType;
     latest_run: {
@@ -132,8 +133,8 @@ export default function PayrollIndex({ filters, years, summary, periods }: Props
                             {filters.year} Kinsena Schedule
                         </h2>
                         <p className="text-sm text-slate-500">
-                            1st kinsena = days 1–15 · 2nd kinsena = days 16–end · 13th month is a
-                            separate slip after December 2nd kinsena
+                            1st kinsena = days 1–15 · 2nd kinsena = days 16–end · 13th month is
+                            split in two separate slips (June + December 2nd kinsena)
                         </p>
                     </div>
                     <div className="overflow-x-auto">
@@ -299,13 +300,15 @@ function TypeBadge({ type }: { type: PeriodType }) {
     const styles: Record<PeriodType, string> = {
         '1st_kinsena': 'bg-emerald-100 text-emerald-700',
         '2nd_kinsena': 'bg-teal-100 text-teal-700',
-        '13th_month': 'bg-pink-100 text-pink-700',
+        '13th_month_1st': 'bg-pink-100 text-pink-700',
+        '13th_month_2nd': 'bg-rose-100 text-rose-700',
     };
 
     const labels: Record<PeriodType, string> = {
         '1st_kinsena': '1st Kinsena',
         '2nd_kinsena': '2nd Kinsena',
-        '13th_month': '13th Month',
+        '13th_month_1st': '13th · 1st half',
+        '13th_month_2nd': '13th · 2nd half',
     };
 
     return (

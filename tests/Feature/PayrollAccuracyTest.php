@@ -441,13 +441,11 @@ test('13th month equals the years total basic divided by twelve', function () {
 
     expect((float) $payslip->thirteenth_month)->toBe(1250.00) // 15,000 / 12
         ->and((float) $payslip->basic_pay)->toBe(0.0)
+        ->and((float) $payslip->total_deductions)->toBe(0.0)
         ->and((float) $payslip->net_pay)->toBe(1250.00);
 });
 
 test('the 13th month is released in two instalments that total the full entitlement', function () {
-    PayrollSetting::setValue('thirteenth_month_split', '1');
-    PayrollSetting::setValue('thirteenth_month_first_month', '6');
-
     // Jan-Jun: 12 cutoffs of 7,500 basic = 90,000 earned by mid-year.
     foreach (range(1, 6) as $month) {
         foreach ([1, 2] as $half) {

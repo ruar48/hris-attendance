@@ -105,7 +105,8 @@ class PayrollCalculator
     }
 
     /**
-     * December 2nd kinsena (16–end) triggers the separate 13th-month payslip.
+     * 13th month is split in two: after the June and December 2nd kinsena
+     * (16–end). Each release is its own payslip — never combined with salary.
      */
     protected function isThirteenthMonthCutoff(PayrollPeriod $period): bool
     {
@@ -113,19 +114,11 @@ class PayrollCalculator
             return false;
         }
 
-        // Instalments are released after the 2nd cutoff of the month.
         if ((int) ($period->half ?? 1) !== 2) {
             return false;
         }
 
-        $month = (int) $period->month;
-
-        if ($month === 12) {
-            return true;
-        }
-
-        return PayrollSetting::bool('thirteenth_month_split')
-            && $month === PayrollSetting::int('thirteenth_month_first_month');
+        return in_array((int) $period->month, [6, 12], true);
     }
 
     public function isThirteenthMonthPeriod(PayrollPeriod $period): bool
@@ -148,7 +141,11 @@ class PayrollCalculator
         $year = (int) $sourcePeriod->year;
         $month = (int) $sourcePeriod->month;
         $end = $sourcePeriod->end_date?->toDateString() ?? "{$year}-12-31";
-        $label = $month === 12 ? '13th Month Pay' : '13th Month Pay (1st release)';
+        $label = match ($month) {
+            6 => '13th Month Pay (1st half · June)',
+            12 => '13th Month Pay (2nd half · December)',
+            default => '13th Month Pay',
+        };
 
         return PayrollPeriod::query()->updateOrCreate(
             [
@@ -185,17 +182,19 @@ class PayrollCalculator
         ]);
 
         $totalPayroll = 0.0;
+        $totalDeductions = 0.0;
 
         foreach ($employees as $employee) {
             $payslip = $this->buildThirteenthMonthPayslip($run, $employee, (int) $period->year);
             $totalPayroll += (float) $payslip->total_earnings;
+            $totalDeductions += (float) $payslip->total_deductions;
         }
 
         $run->update([
             'total_employees' => $employees->count(),
             'total_payroll' => round($totalPayroll, 2),
-            'total_deductions' => 0,
-            'net_payroll' => round($totalPayroll, 2),
+            'total_deductions' => round($totalDeductions, 2),
+            'net_payroll' => round($totalPayroll - $totalDeductions, 2),
             'status' => 'completed',
             'processed_at' => now(),
         ]);
@@ -308,12 +307,14 @@ class PayrollCalculator
             'payroll_run_id' => $run->id,
             'employee_id' => $employee->id,
             'basic_pay' => 0,
+            'absent_days' => 0,
             'holiday_pay' => 0,
             'sunday_route' => 0,
             'overtime_pay' => 0,
             'thirteenth_month' => $thirteenthMonth,
             'late_deduction' => 0,
             'undertime_deduction' => 0,
+            'absence_deduction' => 0,
             'cash_advance_deduction' => 0,
             'sss' => 0,
             'philhealth' => 0,

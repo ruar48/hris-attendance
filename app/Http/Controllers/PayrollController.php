@@ -49,6 +49,7 @@ class PayrollController extends Controller
                 'cutoff_date' => $period->cutoff_date?->toDateString(),
                 'payday' => $period->payday?->toDateString(),
                 'is_thirteenth_month' => (int) ($period->half ?? 1) === PayrollCalculator::THIRTEENTH_MONTH_HALF,
+                'thirteenth_installment' => $this->thirteenthInstallment($period),
                 'half' => (int) ($period->half ?? 1),
                 'type' => $this->periodType($period),
                 'latest_run' => $period->latestRun ? [
@@ -151,9 +152,18 @@ class PayrollController extends Controller
         $half = (int) ($period->half ?? 1);
 
         if ($half === PayrollCalculator::THIRTEENTH_MONTH_HALF) {
-            return '13th_month';
+            return (int) $period->month === 6 ? '13th_month_1st' : '13th_month_2nd';
         }
 
         return $half === 2 ? '2nd_kinsena' : '1st_kinsena';
+    }
+
+    protected function thirteenthInstallment(PayrollPeriod $period): ?int
+    {
+        if ((int) ($period->half ?? 1) !== PayrollCalculator::THIRTEENTH_MONTH_HALF) {
+            return null;
+        }
+
+        return (int) $period->month === 6 ? 1 : 2;
     }
 }
