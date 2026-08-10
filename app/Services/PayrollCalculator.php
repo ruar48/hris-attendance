@@ -6,14 +6,11 @@ use App\Exceptions\PayrollAlreadyProcessed;
 use App\Models\AttendanceRecord;
 use App\Models\CashAdvance;
 use App\Models\Employee;
-use App\Models\Holiday;
 use App\Models\PayrollPeriod;
 use App\Models\PayrollRun;
 use App\Models\PayrollSetting;
 use App\Models\Payslip;
 use App\Models\SystemNotification;
-use Carbon\CarbonInterface;
-use Carbon\CarbonPeriod;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -357,6 +354,10 @@ class PayrollCalculator
      * as worked only when it has a usable attendance record — a day flagged
      * incomplete (a missing punch) is not proof of work until HR corrects it.
      *
+     * A day the employee's `schedules` entry marks as a rest day, leave, or
+     * business trip is likewise not a scheduled working day, even outside
+     * Sundays/holidays.
+     *
      * @param  Collection<int, AttendanceRecord>  $attendance
      * @return array{days: int, amount: float}
      */
@@ -370,35 +371,14 @@ class PayrollCalculator
             return ['days' => 0, 'amount' => 0.0];
         }
 
-        $holidays = Holiday::mapForPeriod($period->start_date, $period->end_date);
-
-        $workedDates = $attendance
-            ->where('is_incomplete', false)
-            ->map(fn (AttendanceRecord $record) => $record->work_date->toDateString())
-            ->all();
-
-        $lastDay = $employee->last_working_day;
-        $scheduled = 0;
-        $absent = 0;
-
-        foreach (CarbonPeriod::create($period->start_date, $period->end_date) as $day) {
-            /** @var CarbonInterface $day */
-            if ($day->isSunday() || $holidays->has($day->toDateString())) {
-                continue;
-            }
-
-            // Days after someone left are not theirs to be absent for; their
-            // basic pay is already prorated for those.
-            if ($lastDay !== null && $day->gt($lastDay)) {
-                continue;
-            }
-
-            $scheduled++;
-
-            if (! in_array($day->toDateString(), $workedDates, true)) {
-                $absent++;
-            }
-        }
+        $summary = AttendancePeriodSummary::build(
+            $employee,
+            $period->start_date,
+            $period->end_date,
+            $attendance
+        );
+        $scheduled = $summary['scheduled'];
+        $absent = $summary['absent'];
 
         if ($scheduled === 0 || $absent === 0) {
             return ['days' => 0, 'amount' => 0.0];

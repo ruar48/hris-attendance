@@ -48,19 +48,33 @@ class DtrController extends Controller
             'reason' => ['required', 'string', 'max:255'],
         ]);
 
-        $log = DtrLog::query()->updateOrCreate(
-            [
+        // updateOrCreate() can't be used here: work_date is cast to `date`,
+        // which Eloquent stores as a full "Y-m-d 00:00:00" string — a plain
+        // "Y-m-d" search value never matches that, so re-saving the same
+        // employee+date would always try to insert and collide with the
+        // unique index instead of updating the existing row.
+        $log = DtrLog::query()
+            ->where('employee_id', $data['employee_id'])
+            ->whereDate('work_date', $data['work_date'])
+            ->first();
+
+        $attributes = [
+            'time_in' => $data['time_in'].':00',
+            'time_out' => isset($data['time_out']) ? $data['time_out'].':00' : null,
+            'reason' => $data['reason'],
+            'status' => 'approved',
+            'approved_by' => $request->user()?->id,
+        ];
+
+        if ($log) {
+            $log->update($attributes);
+        } else {
+            $log = DtrLog::query()->create([
                 'employee_id' => $data['employee_id'],
                 'work_date' => $data['work_date'],
-            ],
-            [
-                'time_in' => $data['time_in'].':00',
-                'time_out' => isset($data['time_out']) ? $data['time_out'].':00' : null,
-                'reason' => $data['reason'],
-                'status' => 'approved',
-                'approved_by' => $request->user()?->id,
-            ]
-        );
+                ...$attributes,
+            ]);
+        }
 
         $employee = Employee::query()->findOrFail($data['employee_id']);
         $resolver->resolveDay($employee, Carbon::parse($data['work_date']));

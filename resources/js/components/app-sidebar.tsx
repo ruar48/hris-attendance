@@ -1,9 +1,11 @@
 import { Link } from '@inertiajs/react';
 import {
+    AlertTriangle,
     Banknote,
     Building2,
     CalendarDays,
     ClipboardList,
+    FileBarChart,
     Fingerprint,
     LayoutGrid,
     Settings,
@@ -37,6 +39,7 @@ const mainNavItems = [
     {
         title: 'Employees',
         href: '/employees',
+        matchHrefs: ['/applicants', '/employees/profile'],
         icon: Users,
         tone: 'bg-sky-100 text-sky-600',
     },
@@ -78,6 +81,30 @@ const attendanceNavItems = [
         href: '/dtr',
         icon: ClipboardList,
         tone: 'bg-amber-100 text-amber-600',
+    },
+    {
+        title: 'Schedules',
+        href: '/schedules',
+        icon: CalendarDays,
+        tone: 'bg-teal-100 text-teal-600',
+    },
+    {
+        title: 'Attendance Summary',
+        href: '/attendance-summary',
+        icon: FileBarChart,
+        tone: 'bg-cyan-100 text-cyan-600',
+    },
+    {
+        title: 'Abnormal',
+        href: '/attendance-summary/abnormal',
+        icon: AlertTriangle,
+        tone: 'bg-red-100 text-red-600',
+    },
+    {
+        title: 'Attendance Report',
+        href: '/attendance-summary/report',
+        icon: FileBarChart,
+        tone: 'bg-purple-100 text-purple-600',
     },
 ];
 

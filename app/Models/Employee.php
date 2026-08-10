@@ -37,6 +37,59 @@ class Employee extends Model
         'last_working_day',
         'status',
         'user_id',
+        ...self::PROFILE_FIELDS,
+        ...self::MASTER_FILE_FIELDS,
+    ];
+
+    /** @var list<string> Extended fields shown on the Employee Master File tab. */
+    public const MASTER_FILE_FIELDS = [
+        'middle_name',
+        'suffix',
+        'photo_url',
+        'personal_email',
+        'company_email',
+        'current_address',
+        'permanent_address',
+    ];
+
+    /** @var list<string> Extended profile fields shown on the employee Profile tab. */
+    public const PROFILE_FIELDS = [
+        'gender',
+        'marital_status',
+        'date_of_birth',
+        'place_of_birth',
+        'nationality',
+        'religion',
+        'contact_number',
+        'address',
+        'emergency_contact_name',
+        'emergency_contact_number',
+        'emergency_contact_address',
+        'emergency_contact_relationship',
+        'immediate_superior',
+        'regularization_date',
+        'separation_date',
+        'division',
+        'job_level',
+        'employment_status',
+        'work_location',
+        'shift_schedule',
+        'time_in_schedule',
+        'time_out_schedule',
+        'salary_type',
+        'tax_status',
+        'rice_allowance',
+        'transpo_allowance',
+        'meal_allowance',
+        'de_minimis_allowance',
+        'bank_name',
+        'bank_account_number',
+        'bank_account_status',
+        'sss_number',
+        'philhealth_number',
+        'pagibig_number',
+        'tin_number',
+        'government_benefits_remarks',
     ];
 
     protected function casts(): array
@@ -48,6 +101,13 @@ class Employee extends Model
             'hourly_rate' => 'decimal:2',
             'hire_date' => 'date',
             'last_working_day' => 'date',
+            'date_of_birth' => 'date',
+            'regularization_date' => 'date',
+            'separation_date' => 'date',
+            'rice_allowance' => 'decimal:2',
+            'transpo_allowance' => 'decimal:2',
+            'meal_allowance' => 'decimal:2',
+            'de_minimis_allowance' => 'decimal:2',
         ];
     }
 

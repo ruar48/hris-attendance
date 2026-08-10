@@ -2,85 +2,77 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\BiometricDevice;
 use App\Models\BiometricLog;
 use App\Models\Employee;
-use App\Services\AttendanceResolver;
-use App\Services\BiometricSyncService;
+use App\Services\AttendanceExcelImportService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
+use RuntimeException;
 
 class BiometricController extends Controller
 {
     public function index(): Response
     {
-        $devices = BiometricDevice::query()
-            ->latest()
-            ->get()
-            ->map(fn (BiometricDevice $device) => [
-                'id' => $device->id,
-                'name' => $device->name,
-                'serial_number' => $device->serial_number,
-                'location' => $device->location,
-                'status' => $device->status,
-                'last_synced_at' => $device->last_synced_at?->toDateTimeString(),
-            ]);
-
+        // Pull a wider window of raw punches, then collapse each employee's
+        // day down to one row — first "in" and last "out" — the same pairing
+        // AttendanceResolver::fromBiometric() uses to resolve a day's time in/out.
         $logs = BiometricLog::query()
             ->with(['employee', 'device'])
             ->latest('punched_at')
-            ->limit(50)
+            ->limit(500)
             ->get()
-            ->map(fn (BiometricLog $log) => [
-                'id' => $log->id,
-                'employee' => $log->employee?->full_name,
-                'employee_code' => $log->employee?->employee_code,
-                'device' => $log->device?->name,
-                'punched_at' => $log->punched_at?->toDateTimeString(),
-                'punch_type' => $log->punch_type,
-            ]);
+            ->groupBy(fn (BiometricLog $log) => $log->employee_id.'|'.$log->punched_at->toDateString())
+            ->map(function ($group) {
+                /** @var BiometricLog $first */
+                $first = $group->first();
+                $timeIn = $group->where('punch_type', 'in')->sortBy('punched_at')->first();
+                $timeOut = $group->where('punch_type', 'out')->sortByDesc('punched_at')->first();
+
+                return [
+                    'id' => $first->id,
+                    'employee' => $first->employee?->full_name,
+                    'employee_code' => $first->employee?->employee_code,
+                    'device' => $first->device?->name,
+                    'date' => $first->punched_at->toDateString(),
+                    'time_in' => $timeIn?->punched_at->format('H:i'),
+                    'time_out' => $timeOut?->punched_at->format('H:i'),
+                ];
+            })
+            ->sortByDesc('date')
+            ->take(50)
+            ->values();
 
         return Inertia::render('biometrics/index', [
-            'devices' => $devices,
             'logs' => $logs,
             'enrolled_count' => Employee::query()->whereNotNull('biometric_user_id')->count(),
+            'importResult' => session('importResult'),
         ]);
     }
 
-    public function sync(Request $request, BiometricSyncService $sync, AttendanceResolver $resolver): RedirectResponse
+    public function import(Request $request, AttendanceExcelImportService $importer): RedirectResponse
     {
-        $device = BiometricDevice::query()->findOrFail($request->integer('device_id'));
+        $data = $request->validate([
+            'file' => ['required', 'file', 'mimes:xlsx,xls', 'max:10240'],
+        ]);
 
-        // Demo ingest: generate today's sample punches for enrolled employees if no payload provided.
-        $punches = $request->input('punches');
-
-        if (! is_array($punches) || $punches === []) {
-            $punches = Employee::query()
-                ->active()
-                ->whereNotNull('biometric_user_id')
-                ->get()
-                ->flatMap(function (Employee $employee) {
-                    return [
-                        [
-                            'biometric_user_id' => $employee->biometric_user_id,
-                            'punched_at' => now()->startOfDay()->setTime(8, rand(0, 20))->toDateTimeString(),
-                            'punch_type' => 'in',
-                        ],
-                        [
-                            'biometric_user_id' => $employee->biometric_user_id,
-                            'punched_at' => now()->startOfDay()->setTime(17, rand(0, 90))->toDateTimeString(),
-                            'punch_type' => 'out',
-                        ],
-                    ];
-                })
-                ->all();
+        try {
+            $result = $importer->import($data['file'], $request->user()?->id);
+        } catch (RuntimeException $e) {
+            return back()->withErrors(['file' => $e->getMessage()]);
         }
 
-        $created = $sync->ingest($device, $punches);
-        $resolver->syncPeriod(now()->startOfMonth(), now()->endOfMonth());
+        $summary = "{$result['created']} new, {$result['updated']} updated, {$result['duplicates']} already imported"
+            ." — {$result['employees']} employee".($result['employees'] === 1 ? '' : 's').'.';
 
-        return back()->with('success', "Synced {$created->count()} biometric punches. Attendance resolved with fingerprint as primary.");
+        Inertia::flash('toast', [
+            'type' => $result['duplicates'] > 0 && $result['created'] === 0 && $result['updated'] === 0
+                ? 'info'
+                : 'success',
+            'message' => $summary,
+        ]);
+
+        return redirect()->route('biometrics.index')->with('importResult', $result);
     }
 }

@@ -12,6 +12,8 @@ import type { NavItem } from '@/types';
 
 type NavItemWithTone = NavItem & {
     tone?: string;
+    /** Extra route prefixes that should also mark this item active (e.g. a tabbed sub-page). */
+    matchHrefs?: string[];
 };
 
 function isNavActive(currentUrl: string, href: string): boolean {
@@ -41,7 +43,9 @@ export function NavMain({
                 {items.map((item) => {
                     const href =
                         typeof item.href === 'string' ? item.href : String(item.href);
-                    const active = isNavActive(currentUrl, href);
+                    const active =
+                        isNavActive(currentUrl, href) ||
+                        (item.matchHrefs?.some((extra) => isNavActive(currentUrl, extra)) ?? false);
 
                     return (
                         <SidebarMenuItem key={item.title} className="overflow-hidden">

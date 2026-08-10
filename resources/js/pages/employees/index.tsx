@@ -3,6 +3,8 @@ import { Archive, ArchiveRestore, Pencil, Search, UserPlus, Users, X } from 'luc
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { ConfirmDialog } from '@/components/confirm-dialog';
+import { EmployeeSectionTabs } from '@/components/employee-section-tabs';
+import { OptionSelect } from '@/components/option-select';
 import { formatPeso } from '@/lib/money';
 
 type EmployeeRow = {
@@ -170,6 +172,7 @@ export default function EmployeesIndex({
         <>
             <Head title="Employees" />
             <div className="flex flex-1 flex-col gap-6 p-4 md:p-6">
+                <EmployeeSectionTabs />
                 <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
                     <div>
                         <h1 className="text-2xl font-semibold text-slate-900">
@@ -285,18 +288,20 @@ export default function EmployeesIndex({
                             </label>
                             <label className="text-sm">
                                 <span className="mb-1.5 block text-slate-600">Position</span>
-                                <input
-                                    className={inputClass}
+                                <OptionSelect
+                                    category="position"
                                     value={form.data.position}
-                                    onChange={(e) => form.setData('position', e.target.value)}
+                                    onChange={(value) => form.setData('position', value)}
+                                    className={inputClass}
                                 />
                             </label>
                             <label className="text-sm">
                                 <span className="mb-1.5 block text-slate-600">Department</span>
-                                <input
-                                    className={inputClass}
+                                <OptionSelect
+                                    category="department"
                                     value={form.data.department}
-                                    onChange={(e) => form.setData('department', e.target.value)}
+                                    onChange={(value) => form.setData('department', value)}
+                                    className={inputClass}
                                 />
                             </label>
                             <label className="text-sm">
