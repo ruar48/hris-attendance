@@ -4,12 +4,14 @@ namespace App\Http\Controllers;
 
 use App\Models\Employee;
 use App\Models\OptionList;
+use App\Services\EmployeeWorkbookImportService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
+use RuntimeException;
 
 class EmployeeController extends Controller
 {
@@ -55,6 +57,7 @@ class EmployeeController extends Controller
                 'hire_date' => $employee->hire_date?->toDateString(),
                 'last_working_day' => $employee->last_working_day?->toDateString(),
                 'status' => $employee->status,
+                'employment_status' => $employee->employment_status,
                 'archived' => $employee->trashed(),
             ]);
 
@@ -68,7 +71,32 @@ class EmployeeController extends Controller
             'perPageOptions' => self::PER_PAGE_OPTIONS,
             'nextEmployeeCode' => $this->nextEmployeeCode(),
             'archivedCount' => Employee::onlyTrashed()->count(),
+            'importResult' => session('importResult'),
         ]);
+    }
+
+    public function import(Request $request, EmployeeWorkbookImportService $importer): RedirectResponse
+    {
+        $data = $request->validate([
+            'file' => ['required', 'file', 'mimes:xlsx,xls', 'max:20480'],
+        ]);
+
+        try {
+            $result = $importer->import($data['file']);
+        } catch (RuntimeException $e) {
+            return back()->withErrors(['file' => $e->getMessage()]);
+        }
+
+        $summary = "{$result['employees']['created']} employees added, {$result['employees']['updated']} updated"
+            ." — {$result['applicants']['created']} applicants added, {$result['applicants']['updated']} updated"
+            ." — {$result['option_lists']['created']} option list entries added, {$result['option_lists']['updated']} updated.";
+
+        Inertia::flash('toast', [
+            'type' => empty($result['sheets_found']) ? 'info' : 'success',
+            'message' => $summary,
+        ]);
+
+        return redirect()->route('employees.index')->with('importResult', $result);
     }
 
     public function store(Request $request): RedirectResponse
@@ -319,6 +347,7 @@ class EmployeeController extends Controller
                 'emergency_contact_number' => $employee->emergency_contact_number,
                 'emergency_contact_relationship' => $employee->emergency_contact_relationship,
                 'status' => $employee->status,
+                'employment_status' => $employee->employment_status,
                 // Required by validateEmployee() when this row is PUT back with an inline edit.
                 'basic_salary' => (float) $employee->basic_salary,
                 'daily_rate' => (float) $employee->daily_rate,
@@ -365,6 +394,7 @@ class EmployeeController extends Controller
                 'pagibig_number' => $employee->pagibig_number,
                 'tin_number' => $employee->tin_number,
                 'government_benefits_remarks' => $employee->government_benefits_remarks,
+                'employment_status' => $employee->employment_status,
                 // Required by validateEmployee() when this row is PUT back with an inline edit.
                 'basic_salary' => (float) $employee->basic_salary,
                 'daily_rate' => (float) $employee->daily_rate,
@@ -416,6 +446,7 @@ class EmployeeController extends Controller
                 'bank_name' => $employee->bank_name,
                 'bank_account_number' => $employee->bank_account_number,
                 'bank_account_status' => $employee->bank_account_status,
+                'employment_status' => $employee->employment_status,
                 // Required by validateEmployee() when this row is PUT back with an inline edit.
                 'daily_rate' => (float) $employee->daily_rate,
                 'hourly_rate' => (float) $employee->hourly_rate,

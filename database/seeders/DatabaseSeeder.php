@@ -10,11 +10,6 @@ class DatabaseSeeder extends Seeder
     {
         $this->call(OptionListSeeder::class);
         $this->call(PhilippineHolidaySeeder::class);
-        $this->call(ClientDemoSeeder::class);
-        $this->call(YearlyPayrollSeeder::class);
-        $this->call(RealEmployeeSeeder::class);
-        $this->call(EmployeeMasterFileSeeder::class);
-        $this->call(EmployeeGovernmentBenefitsSeeder::class);
-        $this->call(EmployeeCompensationSeeder::class);
+        $this->call(AdminUserSeeder::class);
     }
 }

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import { EmployeeSectionTabs } from '@/components/employee-section-tabs';
 import { OptionSelect } from '@/components/option-select';
+import { employeeRowClass, isFlaggedEmploymentStatus } from '@/lib/employee-flags';
 import { GENDER_OPTIONS, MARITAL_STATUS_OPTIONS } from '@/lib/hr-options';
 
 type MasterFileRow = {
@@ -30,6 +31,7 @@ type MasterFileRow = {
     emergency_contact_number: string | null;
     emergency_contact_relationship: string | null;
     status: string;
+    employment_status: string | null;
     basic_salary: number;
     daily_rate: number;
     hourly_rate: number;
@@ -180,7 +182,7 @@ export default function MasterFileIndex({ employees, filters, perPageOptions }: 
                                     </tr>
                                 )}
                                 {employees.data.map((row, index) => (
-                                    <tr key={row.id} className={index % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
+                                    <tr key={row.id} className={employeeRowClass(isFlaggedEmploymentStatus(row.employment_status), index)}>
                                         <td className="sticky left-0 z-10 border border-slate-300 bg-inherit px-2 py-1 font-mono font-medium whitespace-nowrap text-slate-700">
                                             {row.employee_code}
                                         </td>

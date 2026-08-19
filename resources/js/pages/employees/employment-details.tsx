@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { EmployeeSectionTabs } from '@/components/employee-section-tabs';
 import { OptionSelect } from '@/components/option-select';
 import { useOptionList } from '@/hooks/use-option-list';
+import { employeeRowClass, isFlaggedEmploymentStatus } from '@/lib/employee-flags';
 
 type EmploymentRow = {
     id: number;
@@ -164,7 +165,7 @@ export default function EmploymentDetailsIndex({ employees, filters, perPageOpti
                                     </tr>
                                 )}
                                 {employees.data.map((row, index) => (
-                                    <tr key={row.id} className={index % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
+                                    <tr key={row.id} className={employeeRowClass(isFlaggedEmploymentStatus(row.employment_status), index)}>
                                         <td className="sticky left-0 z-10 border border-slate-300 bg-inherit px-2 py-1 font-mono font-medium whitespace-nowrap text-slate-700">
                                             {row.employee_code}
                                         </td>

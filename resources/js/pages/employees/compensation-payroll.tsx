@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import { EmployeeSectionTabs } from '@/components/employee-section-tabs';
 import { OptionSelect } from '@/components/option-select';
+import { employeeRowClass, isFlaggedEmploymentStatus } from '@/lib/employee-flags';
 import { BANK_ACCOUNT_STATUS_OPTIONS, SALARY_TYPE_OPTIONS } from '@/lib/hr-options';
 
 type CompensationRow = {
@@ -23,6 +24,7 @@ type CompensationRow = {
     bank_name: string | null;
     bank_account_number: string | null;
     bank_account_status: string | null;
+    employment_status: string | null;
     daily_rate: number;
     hourly_rate: number;
 };
@@ -171,7 +173,7 @@ export default function CompensationPayrollIndex({ employees, filters, perPageOp
                                     </tr>
                                 )}
                                 {employees.data.map((row, index) => (
-                                    <tr key={row.id} className={index % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
+                                    <tr key={row.id} className={employeeRowClass(isFlaggedEmploymentStatus(row.employment_status), index)}>
                                         <td className="sticky left-0 z-10 border border-slate-300 bg-inherit px-2 py-1 font-mono font-medium whitespace-nowrap text-slate-700">
                                             {row.employee_code}
                                         </td>

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import { EmployeeSectionTabs } from '@/components/employee-section-tabs';
 import { OptionSelect } from '@/components/option-select';
+import { employeeRowClass, isFlaggedEmploymentStatus } from '@/lib/employee-flags';
 
 type BenefitsRow = {
     id: number;
@@ -17,6 +18,7 @@ type BenefitsRow = {
     pagibig_number: string | null;
     tin_number: string | null;
     government_benefits_remarks: string | null;
+    employment_status: string | null;
     basic_salary: number;
     daily_rate: number;
     hourly_rate: number;
@@ -140,7 +142,7 @@ export default function GovernmentBenefitsIndex({ employees, filters, perPageOpt
                                     </tr>
                                 )}
                                 {employees.data.map((row, index) => (
-                                    <tr key={row.id} className={index % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
+                                    <tr key={row.id} className={employeeRowClass(isFlaggedEmploymentStatus(row.employment_status), index)}>
                                         <td className="sticky left-0 z-10 border border-slate-300 bg-inherit px-2 py-1 font-mono font-medium whitespace-nowrap text-slate-700">
                                             {row.employee_code}
                                         </td>

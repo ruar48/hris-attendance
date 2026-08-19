@@ -1,10 +1,11 @@
 import { Head, router } from '@inertiajs/react';
-import { Search } from 'lucide-react';
+import { AlertTriangle, Search } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { EmployeeSectionTabs } from '@/components/employee-section-tabs';
 import { OptionSelect } from '@/components/option-select';
 import { useOptionList } from '@/hooks/use-option-list';
+import { isFlaggedEmploymentStatus } from '@/lib/employee-flags';
 import { GENDER_OPTIONS, MARITAL_STATUS_OPTIONS, SALARY_TYPE_OPTIONS } from '@/lib/hr-options';
 import type { OptionListCategory } from '@/types/global';
 
@@ -276,6 +277,13 @@ export default function EmployeeProfilePage({ employee, search, reportingToOptio
                             <div className="mt-1 text-sm text-rose-100 italic">{employee.position || 'Position/Title'}</div>
                             <div className="mt-1 font-mono text-xs text-rose-200">{employee.employee_code}</div>
                         </div>
+
+                        {isFlaggedEmploymentStatus(employee.employment_status) && (
+                            <div className="flex items-center gap-2 border-b border-red-200 bg-red-50 px-6 py-3 text-sm font-semibold text-red-800">
+                                <AlertTriangle className="size-4 shrink-0" />
+                                Employment status: {employee.employment_status?.replace(/_/g, ' ')}
+                            </div>
+                        )}
 
                         <div className="grid gap-x-8 gap-y-3 p-6 md:grid-cols-3">
                             <div className="flex flex-col gap-3">

@@ -1,11 +1,21 @@
 import { Head, Link, router, useForm } from '@inertiajs/react';
-import { Archive, ArchiveRestore, Pencil, Search, UserPlus, Users, X } from 'lucide-react';
+import { Archive, ArchiveRestore, CheckCircle2, Info, Pencil, Search, Upload, UserPlus, Users, X } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { EmployeeSectionTabs } from '@/components/employee-section-tabs';
 import { OptionSelect } from '@/components/option-select';
+import { employeeRowClass, isFlaggedEmploymentStatus } from '@/lib/employee-flags';
 import { formatPeso } from '@/lib/money';
+
+type ImportResult = {
+    sheets_found: string[];
+    sheets_missing: string[];
+    employees: { created: number; updated: number };
+    applicants: { created: number; updated: number };
+    option_lists: { created: number; updated: number };
+    warnings: string[];
+};
 
 type EmployeeRow = {
     id: number;
@@ -24,6 +34,7 @@ type EmployeeRow = {
     hire_date: string | null;
     last_working_day: string | null;
     status: string;
+    employment_status: string | null;
     archived: boolean;
 };
 
@@ -46,6 +57,7 @@ type Props = {
     perPageOptions: number[];
     nextEmployeeCode: string;
     archivedCount: number;
+    importResult: ImportResult | null;
 };
 
 const emptyForm = {
@@ -70,14 +82,31 @@ export default function EmployeesIndex({
     perPageOptions,
     nextEmployeeCode,
     archivedCount,
+    importResult,
 }: Props) {
     const [search, setSearch] = useState(filters.search ?? '');
     const [showForm, setShowForm] = useState(false);
+    const [showImport, setShowImport] = useState(false);
     const [editing, setEditing] = useState<EmployeeRow | null>(null);
     const [archiving, setArchiving] = useState<EmployeeRow | null>(null);
     const [lastWorkingDay, setLastWorkingDay] = useState(() => new Date().toISOString().slice(0, 10));
 
     const form = useForm({ ...emptyForm });
+    const importForm = useForm<{ file: File | null }>({ file: null });
+
+    const submitImport = (event: React.FormEvent) => {
+        event.preventDefault();
+
+        if (!importForm.data.file) {
+            return;
+        }
+
+        importForm.post('/employees/import', {
+            forceFormData: true,
+            preserveScroll: true,
+            onSuccess: () => importForm.setData('file', null),
+        });
+    };
 
     const inputClass =
         'w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-emerald-400';
@@ -209,17 +238,125 @@ export default function EmployeesIndex({
                             {filters.archived ? 'Active' : `Archived (${archivedCount})`}
                         </button>
                         {!filters.archived && (
-                            <button
-                                type="button"
-                                onClick={() => (showForm && !editing ? closeForm() : startCreate())}
-                                className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700"
-                            >
-                                {showForm && !editing ? <X className="size-4" /> : <UserPlus className="size-4" />}
-                                {showForm && !editing ? 'Close' : 'Add Employee'}
-                            </button>
+                            <>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowImport((value) => !value)}
+                                    className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50"
+                                >
+                                    {showImport ? <X className="size-4" /> : <Upload className="size-4" />}
+                                    {showImport ? 'Close' : 'Import Workbook'}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => (showForm && !editing ? closeForm() : startCreate())}
+                                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700"
+                                >
+                                    {showForm && !editing ? <X className="size-4" /> : <UserPlus className="size-4" />}
+                                    {showForm && !editing ? 'Close' : 'Add Employee'}
+                                </button>
+                            </>
                         )}
                     </div>
                 </div>
+
+                {showImport && (
+                    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                        <div className="mb-4 flex items-center gap-2">
+                            <div className="rounded-xl bg-emerald-100 p-2 text-emerald-600">
+                                <Upload className="size-4" />
+                            </div>
+                            <div>
+                                <h2 className="text-lg font-semibold text-slate-900">Import 201 Files Workbook</h2>
+                                <p className="text-sm text-slate-500">
+                                    Upload the master .xlsx workbook. Sheets named "Application/Onboarding &
+                                    Requirements Tracker", "Employment Details", "Employee Master File",
+                                    "Government Benefits Details", "Compensation &amp; Payroll Details", and
+                                    "Source Data" are matched by title and merged into the matching employee
+                                    (keyed by Employee ID), applicant, and dropdown records. Existing records
+                                    are updated, not duplicated — safe to re-run after fixing the sheet.
+                                </p>
+                            </div>
+                        </div>
+                        <form className="flex flex-wrap items-end gap-4" onSubmit={submitImport}>
+                            <label className="text-sm">
+                                <span className="mb-1.5 block text-slate-600">Excel Workbook (.xlsx, .xls)</span>
+                                <input
+                                    type="file"
+                                    accept=".xlsx,.xls"
+                                    className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-xl file:border-0 file:bg-slate-900 file:px-4 file:py-2.5 file:text-sm file:font-semibold file:text-white hover:file:bg-slate-800"
+                                    onChange={(e) => importForm.setData('file', e.target.files?.[0] ?? null)}
+                                />
+                                {importForm.errors.file && (
+                                    <span className="mt-1 block text-xs text-rose-600">{importForm.errors.file}</span>
+                                )}
+                            </label>
+                            <button
+                                type="submit"
+                                disabled={importForm.processing || !importForm.data.file}
+                                className="inline-flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-teal-700 disabled:opacity-50"
+                            >
+                                <Upload className="size-4" />
+                                {importForm.processing ? 'Importing…' : 'Import'}
+                            </button>
+                        </form>
+
+                        {importResult && (
+                            <div className="mt-5 border-t border-slate-100 pt-5">
+                                <div className="mb-3 flex items-center gap-2">
+                                    <div
+                                        className={
+                                            importResult.sheets_found.length === 0
+                                                ? 'rounded-xl bg-slate-100 p-2 text-slate-500'
+                                                : 'rounded-xl bg-emerald-100 p-2 text-emerald-600'
+                                        }
+                                    >
+                                        {importResult.sheets_found.length === 0 ? (
+                                            <Info className="size-4" />
+                                        ) : (
+                                            <CheckCircle2 className="size-4" />
+                                        )}
+                                    </div>
+                                    <h3 className="font-semibold text-slate-900">Last Import Result</h3>
+                                </div>
+                                <ul className="grid gap-1.5 text-sm text-slate-700 sm:grid-cols-3">
+                                    <li>
+                                        <strong>{importResult.employees.created}</strong> employees added,{' '}
+                                        <strong>{importResult.employees.updated}</strong> updated
+                                    </li>
+                                    <li>
+                                        <strong>{importResult.applicants.created}</strong> applicants added,{' '}
+                                        <strong>{importResult.applicants.updated}</strong> updated
+                                    </li>
+                                    <li>
+                                        <strong>{importResult.option_lists.created}</strong> option list entries
+                                        added, <strong>{importResult.option_lists.updated}</strong> updated
+                                    </li>
+                                </ul>
+
+                                {importResult.sheets_missing.length > 0 && (
+                                    <p className="mt-3 text-sm text-slate-500">
+                                        Sheets not found in this file: {importResult.sheets_missing.join(', ')}.
+                                    </p>
+                                )}
+
+                                {importResult.warnings.length > 0 && (
+                                    <div className="mt-4">
+                                        <p className="mb-2 text-sm font-semibold text-amber-700">
+                                            {importResult.warnings.length} note
+                                            {importResult.warnings.length === 1 ? '' : 's'}
+                                        </p>
+                                        <ul className="max-h-64 space-y-1 overflow-y-auto rounded-xl border border-amber-100 bg-amber-50 p-3 text-xs text-amber-900">
+                                            {importResult.warnings.map((warning, index) => (
+                                                <li key={index}>{warning}</li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </section>
+                )}
 
                 {showForm && (
                     <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -428,12 +565,18 @@ export default function EmployeesIndex({
                                         </td>
                                     </tr>
                                 )}
-                                {employees.data.map((employee) => (
-                                    <tr key={employee.id} className="border-b border-slate-100 last:border-0">
+                                {employees.data.map((employee) => {
+                                    const flagged = !employee.archived && isFlaggedEmploymentStatus(employee.employment_status);
+
+                                    return (
+                                    <tr
+                                        key={employee.id}
+                                        className={`border-b border-slate-100 last:border-0 ${flagged ? 'bg-red-50 hover:bg-red-100' : ''}`}
+                                    >
                                         <td className="px-4 py-3 font-medium text-slate-800">
                                             {employee.employee_code}
                                         </td>
-                                        <td className="px-4 py-3 text-slate-700">
+                                        <td className={`px-4 py-3 ${flagged ? 'text-red-950' : 'text-slate-700'}`}>
                                             {employee.full_name}
                                             {employee.archived && employee.last_working_day && (
                                                 <span className="block text-xs text-slate-400">
@@ -495,7 +638,8 @@ export default function EmployeesIndex({
                                             </div>
                                         </td>
                                     </tr>
-                                ))}
+                                    );
+                                })}
                             </tbody>
                         </table>
                     </div>

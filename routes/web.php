@@ -38,6 +38,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('option-lists', [OptionListController::class, 'store'])->name('option-lists.store');
     Route::put('option-lists/{optionList}', [OptionListController::class, 'update'])->name('option-lists.update');
     Route::delete('option-lists/{optionList}', [OptionListController::class, 'destroy'])->name('option-lists.destroy');
+    Route::post('employees/import', [EmployeeController::class, 'import'])->name('employees.import');
     Route::post('employees', [EmployeeController::class, 'store'])->name('employees.store');
     Route::put('employees/{employee}', [EmployeeController::class, 'update'])->name('employees.update');
     Route::delete('employees/{employee}', [EmployeeController::class, 'destroy'])->name('employees.destroy');
