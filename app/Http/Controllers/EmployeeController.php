@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Employee;
 use App\Models\OptionList;
+use App\Services\AttendanceResolver;
 use App\Services\EmployeeWorkbookImportService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -144,6 +145,12 @@ class EmployeeController extends Controller
             ...Arr::only($data, Employee::PROFILE_FIELDS),
             ...Arr::only($data, Employee::MASTER_FILE_FIELDS),
         ]);
+
+        // A new rate changes the peso amounts (OT, night diff, late) already
+        // calculated from their time sheet, so work those days out again.
+        if ($employee->wasChanged(['basic_salary', 'daily_rate', 'hourly_rate'])) {
+            app(AttendanceResolver::class)->refreshEncodedDays($employee);
+        }
 
         return $this->toast('success', "{$employee->full_name} was updated.");
     }

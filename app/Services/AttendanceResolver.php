@@ -297,6 +297,11 @@ class AttendanceResolver
             return $hourly;
         }
 
+        // Daily-paid staff: their day rate over an 8-hour day.
+        if ((float) $employee->daily_rate > 0) {
+            return round(((float) $employee->daily_rate) / 8, 2);
+        }
+
         // Fallback: monthly basic over the configured working days and shift hours.
         return round(((float) $employee->basic_salary) / 22 / 8, 2);
     }
@@ -445,6 +450,7 @@ class AttendanceResolver
             default => $undertimeMinutes,
         };
     }
+
     protected function normalizeTime(string $time): string
     {
         $time = trim($time);

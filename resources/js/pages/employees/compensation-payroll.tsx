@@ -129,7 +129,7 @@ export default function CompensationPayrollIndex({ employees, filters, perPageOp
                         <table className="w-full border-collapse text-left text-[11px] leading-tight">
                             <thead>
                                 <tr>
-                                    {['Employee ID', 'Employee Name', 'Position', 'Salary Type', 'Basic Salary', 'Tax Status'].map(
+                                    {['Employee ID', 'Employee Name', 'Position', 'Salary Type', 'Basic Salary / Daily Rate', 'Tax Status'].map(
                                         (label, i) => (
                                             <th
                                                 key={label}
@@ -203,14 +203,39 @@ export default function CompensationPayrollIndex({ employees, filters, perPageOp
                                             </select>
                                         </td>
                                         <td className="border border-slate-300 p-0">
-                                            <input
-                                                type="number"
-                                                min={0}
-                                                step="0.01"
-                                                className={inputClass}
-                                                defaultValue={row.basic_salary}
-                                                onBlur={(e) => patch(row, { basic_salary: e.target.value === '' ? 0 : Number(e.target.value) })}
-                                            />
+                                            {row.salary_type === 'daily' ? (
+                                                // Daily-paid staff are paid per day worked, so their rate is the daily rate.
+                                                <div className="flex items-center">
+                                                    <input
+                                                        key={`daily-${row.id}`}
+                                                        type="number"
+                                                        min={0}
+                                                        step="0.01"
+                                                        className={`${inputClass} ${row.daily_rate > 0 ? '' : 'bg-amber-50'}`}
+                                                        defaultValue={row.daily_rate || ''}
+                                                        placeholder="Enter daily rate"
+                                                        onBlur={(e) =>
+                                                            Number(e.target.value || 0) !== row.daily_rate &&
+                                                            patch(row, { daily_rate: e.target.value === '' ? 0 : Number(e.target.value) })
+                                                        }
+                                                    />
+                                                    <span className="pr-2 text-[10px] whitespace-nowrap text-slate-500">/ day</span>
+                                                </div>
+                                            ) : (
+                                                <input
+                                                    key={`basic-${row.id}`}
+                                                    type="number"
+                                                    min={0}
+                                                    step="0.01"
+                                                    className={`${inputClass} ${row.basic_salary > 0 ? '' : 'bg-amber-50'}`}
+                                                    defaultValue={row.basic_salary || ''}
+                                                    placeholder="Enter salary"
+                                                    onBlur={(e) =>
+                                                        Number(e.target.value || 0) !== row.basic_salary &&
+                                                        patch(row, { basic_salary: e.target.value === '' ? 0 : Number(e.target.value) })
+                                                    }
+                                                />
+                                            )}
                                         </td>
                                         <td className="border border-slate-300 p-0">
                                             <TextCell value={row.tax_status} onCommit={(v) => patch(row, { tax_status: v })} />
