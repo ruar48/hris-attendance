@@ -596,7 +596,11 @@ export default function EmployeesIndex({
                                         <td className="px-4 py-3 text-slate-700">
                                             {employee.salary_type === 'daily' && employee.daily_rate > 0
                                                 ? `${formatPeso(employee.daily_rate)} / day`
-                                                : formatPeso(employee.basic_salary)}
+                                                : employee.salary_type === 'hourly' && employee.hourly_rate > 0
+                                                  ? `${formatPeso(employee.hourly_rate)} / hour`
+                                                  : employee.salary_type === 'weekly'
+                                                    ? `${formatPeso(employee.basic_salary)} / week`
+                                                    : formatPeso(employee.basic_salary)}
                                         </td>
                                         <td className="px-4 py-3">
                                             <span

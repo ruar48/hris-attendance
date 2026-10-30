@@ -97,6 +97,37 @@ test('a daily-rated worker is paid per day worked, like the site payroll sheets'
         ->and((float) $payslip->sss)->toBeGreaterThan(0.0);   // contributions on 600 × 26
 });
 
+test('an hourly-rated worker is paid hourly rate × 8 per day worked, with OT on that rate', function () {
+    $this->employee->update(['salary_type' => 'hourly', 'basic_salary' => 0, 'daily_rate' => 0, 'hourly_rate' => 80]);
+
+    encode([
+        ['date' => '2026-06-01', 'time_in' => '08:00', 'time_out' => '17:00'],
+        ['date' => '2026-06-02', 'time_in' => '08:00', 'time_out' => '19:00'], // 2h OT
+    ]);
+
+    $this->post(route('payroll.run'), ['payroll_period_id' => $this->period->id]);
+
+    $payslip = Payslip::query()->where('employee_id', $this->employee->id)->sole();
+
+    expect((float) $payslip->basic_pay)->toBe(1920.0)       // 80 × 8 × (2 worked + 1 unworked regular holiday)
+        ->and((float) $payslip->overtime_pay)->toBe(200.0)  // 2h × 80 × 1.25
+        ->and((float) $payslip->absence_deduction)->toBe(0.0);
+});
+
+test('a weekly salary is paid as its monthly equivalent, half per cutoff', function () {
+    $this->employee->update(['salary_type' => 'weekly', 'basic_salary' => 3600, 'daily_rate' => 0, 'hourly_rate' => 0]);
+
+    encode([['date' => '2026-06-01', 'time_in' => '08:30', 'time_out' => '17:00']]); // 30 min late
+
+    $this->post(route('payroll.run'), ['payroll_period_id' => $this->period->id]);
+
+    $payslip = Payslip::query()->where('employee_id', $this->employee->id)->sole();
+
+    // 3,600 × 52 / 12 = 15,600 a month; hourly = 15,600 / 22 / 8 = 88.64.
+    expect((float) $payslip->basic_pay)->toBe(7800.0)
+        ->and((float) $payslip->late_deduction)->toBe(44.32); // 30 min × 88.64/h
+});
+
 test('adding a holiday updates the days already encoded on it', function () {
     encode([['date' => '2026-06-19', 'time_in' => '08:00', 'time_out' => '17:00']]);
     expect((float) AttendanceRecord::query()->sole()->holiday_pay)->toBe(0.0);

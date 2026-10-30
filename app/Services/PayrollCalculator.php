@@ -344,12 +344,12 @@ class PayrollCalculator
      * Someone who worked 10 days of a 15-day period earns 10/15 of the basic.
      */
     /**
-     * Daily-rated staff (salary type "Daily") are paid per day, like the
-     * site payroll sheets: daily rate × days paid in the cutoff.
+     * Daily- and hourly-rated staff are paid per day, like the site payroll
+     * sheets: day rate (hourly rate × 8 for hourly staff) × days paid.
      */
     protected function isDailyPaid(Employee $employee): bool
     {
-        return $employee->salary_type === 'daily' && (float) $employee->daily_rate > 0;
+        return $employee->isPaidPerDay();
     }
 
     /**
@@ -381,7 +381,7 @@ class PayrollCalculator
         $days = $workedDates->count() + $summary['leave'] + $unworkedRegularHolidays;
 
         return [
-            'amount' => round((float) $employee->daily_rate * $days, 2),
+            'amount' => round($employee->dailyRate() * $days, 2),
             'days' => $days,
             'absent' => $summary['absent'],
             'unpaid_leave' => $summary['unpaidLeave'],
@@ -390,7 +390,8 @@ class PayrollCalculator
 
     protected function periodBasicPay(Employee $employee, PayrollPeriod $period): float
     {
-        $basic = ((float) $employee->basic_salary) / 2;
+        // Half a month per cutoff (a weekly salary is converted to its monthly equivalent).
+        $basic = $employee->monthlyRate() / 2;
 
         if (! $employee->leftDuring($period->end_date)) {
             return round($basic, 2);
@@ -560,11 +561,9 @@ class PayrollCalculator
      */
     protected function governmentBenefits(Employee $employee): array
     {
-        // A daily-rated employee's monthly equivalent: daily rate × 26
-        // working days (the usual factor for a six-day work week).
-        $monthlyBasic = $this->isDailyPaid($employee)
-            ? (float) $employee->daily_rate * 26
-            : (float) $employee->basic_salary;
+        // Monthly equivalent for any salary type (daily rate × 26 working
+        // days for daily staff — the usual factor for a six-day work week).
+        $monthlyBasic = $employee->monthlyRate();
 
         return [
             'sss' => round($this->sssEmployeeShare($monthlyBasic) / 2, 2),

@@ -44,6 +44,28 @@ type Props = {
     perPageOptions: number[];
 };
 
+/**
+ * The pay field and unit that hold an employee's rate for their salary type
+ * (same mapping as Employee::RATE_FIELDS). Daily and hourly staff are paid per
+ * day worked; the rest earn a fixed salary.
+ */
+function rateFieldFor(salaryType: string | null): {
+    field: 'basic_salary' | 'daily_rate' | 'hourly_rate';
+    unit: string;
+    placeholder: string;
+} {
+    switch (salaryType) {
+        case 'daily':
+            return { field: 'daily_rate', unit: '/ day', placeholder: 'Enter daily rate' };
+        case 'hourly':
+            return { field: 'hourly_rate', unit: '/ hour', placeholder: 'Enter hourly rate' };
+        case 'weekly':
+            return { field: 'basic_salary', unit: '/ week', placeholder: 'Enter weekly salary' };
+        default:
+            return { field: 'basic_salary', unit: '/ month', placeholder: 'Enter monthly salary' };
+    }
+}
+
 export default function CompensationPayrollIndex({ employees, filters, perPageOptions }: Props) {
     const [search, setSearch] = useState(filters.search ?? '');
 
@@ -129,7 +151,7 @@ export default function CompensationPayrollIndex({ employees, filters, perPageOp
                         <table className="w-full border-collapse text-left text-[11px] leading-tight">
                             <thead>
                                 <tr>
-                                    {['Employee ID', 'Employee Name', 'Position', 'Salary Type', 'Basic Salary / Daily Rate', 'Tax Status'].map(
+                                    {['Employee ID', 'Employee Name', 'Position', 'Salary Type', 'Salary / Rate', 'Tax Status'].map(
                                         (label, i) => (
                                             <th
                                                 key={label}
@@ -203,39 +225,29 @@ export default function CompensationPayrollIndex({ employees, filters, perPageOp
                                             </select>
                                         </td>
                                         <td className="border border-slate-300 p-0">
-                                            {row.salary_type === 'daily' ? (
-                                                // Daily-paid staff are paid per day worked, so their rate is the daily rate.
-                                                <div className="flex items-center">
-                                                    <input
-                                                        key={`daily-${row.id}`}
-                                                        type="number"
-                                                        min={0}
-                                                        step="0.01"
-                                                        className={`${inputClass} ${row.daily_rate > 0 ? '' : 'bg-amber-50'}`}
-                                                        defaultValue={row.daily_rate || ''}
-                                                        placeholder="Enter daily rate"
-                                                        onBlur={(e) =>
-                                                            Number(e.target.value || 0) !== row.daily_rate &&
-                                                            patch(row, { daily_rate: e.target.value === '' ? 0 : Number(e.target.value) })
-                                                        }
-                                                    />
-                                                    <span className="pr-2 text-[10px] whitespace-nowrap text-slate-500">/ day</span>
-                                                </div>
-                                            ) : (
-                                                <input
-                                                    key={`basic-${row.id}`}
-                                                    type="number"
-                                                    min={0}
-                                                    step="0.01"
-                                                    className={`${inputClass} ${row.basic_salary > 0 ? '' : 'bg-amber-50'}`}
-                                                    defaultValue={row.basic_salary || ''}
-                                                    placeholder="Enter salary"
-                                                    onBlur={(e) =>
-                                                        Number(e.target.value || 0) !== row.basic_salary &&
-                                                        patch(row, { basic_salary: e.target.value === '' ? 0 : Number(e.target.value) })
-                                                    }
-                                                />
-                                            )}
+                                            {(() => {
+                                                const rate = rateFieldFor(row.salary_type);
+                                                const value = row[rate.field];
+
+                                                return (
+                                                    <div className="flex items-center">
+                                                        <input
+                                                            key={`${rate.field}-${row.id}`}
+                                                            type="number"
+                                                            min={0}
+                                                            step="0.01"
+                                                            className={`${inputClass} ${value > 0 ? '' : 'bg-amber-50'}`}
+                                                            defaultValue={value || ''}
+                                                            placeholder={rate.placeholder}
+                                                            onBlur={(e) =>
+                                                                Number(e.target.value || 0) !== value &&
+                                                                patch(row, { [rate.field]: e.target.value === '' ? 0 : Number(e.target.value) })
+                                                            }
+                                                        />
+                                                        <span className="pr-2 text-[10px] whitespace-nowrap text-slate-500">{rate.unit}</span>
+                                                    </div>
+                                                );
+                                            })()}
                                         </td>
                                         <td className="border border-slate-300 p-0">
                                             <TextCell value={row.tax_status} onCommit={(v) => patch(row, { tax_status: v })} />

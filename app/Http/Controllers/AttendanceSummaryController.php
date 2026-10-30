@@ -54,11 +54,11 @@ class AttendanceSummaryController extends Controller
                 $undertimeDeduction = (float) $attendance->sum('undertime_deduction');
 
                 $absenceDeduction = $summary['scheduled'] > 0
-                    ? round((float) $employee->daily_rate * $summary['absent'], 2)
+                    ? round($employee->dailyRate() * $summary['absent'], 2)
                     : 0.0;
 
                 $realPay = round(
-                    $summary['worked'] * (float) $employee->daily_rate
+                    $summary['worked'] * $employee->dailyRate()
                     + $holidayPay + $sundayPay + $otPay
                     - $lateDeduction - $undertimeDeduction,
                     2

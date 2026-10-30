@@ -161,7 +161,7 @@ class AttendanceResolver
         $holidayPay = 0.0;
         if ($isHoliday) {
             $multiplier = $this->holidayMultiplier($holiday, $holidayMultiplier);
-            $holidayPay = round((float) $employee->daily_rate * max(0, $multiplier - 1) * $workedShare, 2);
+            $holidayPay = round($employee->dailyRate() * max(0, $multiplier - 1) * $workedShare, 2);
         }
 
         $sundayPay = $isSunday
@@ -291,19 +291,7 @@ class AttendanceResolver
      */
     protected function deductionHourlyRate(Employee $employee): float
     {
-        $hourly = (float) $employee->hourly_rate;
-
-        if ($hourly > 0) {
-            return $hourly;
-        }
-
-        // Daily-paid staff: their day rate over an 8-hour day.
-        if ((float) $employee->daily_rate > 0) {
-            return round(((float) $employee->daily_rate) / 8, 2);
-        }
-
-        // Fallback: monthly basic over the configured working days and shift hours.
-        return round(((float) $employee->basic_salary) / 22 / 8, 2);
+        return $employee->hourlyRate();
     }
 
     /**

@@ -132,6 +132,67 @@ class Employee extends Model
         ];
     }
 
+    /**
+     * Which pay field holds the rate for each salary type. Daily and hourly
+     * staff are paid per day worked; everyone else is on a fixed salary
+     * (basic_salary is a month's pay, or a week's for weekly staff).
+     */
+    public const RATE_FIELDS = [
+        'daily' => 'daily_rate',
+        'hourly' => 'hourly_rate',
+        'weekly' => 'basic_salary',
+        'monthly' => 'basic_salary',
+        'semi_monthly' => 'basic_salary',
+    ];
+
+    /** Paid per day worked (rate × days) rather than a fixed salary. */
+    public function isPaidPerDay(): bool
+    {
+        return match ($this->salary_type) {
+            'daily' => (float) $this->daily_rate > 0,
+            'hourly' => (float) $this->hourly_rate > 0,
+            default => false,
+        };
+    }
+
+    /**
+     * A month's pay, whatever the salary type — used for government
+     * contribution brackets and for fixed-salary cutoff pay.
+     */
+    public function monthlyRate(): float
+    {
+        return match (true) {
+            $this->salary_type === 'daily' && (float) $this->daily_rate > 0 => (float) $this->daily_rate * 26,
+            $this->salary_type === 'hourly' && (float) $this->hourly_rate > 0 => (float) $this->hourly_rate * 8 * 26,
+            $this->salary_type === 'weekly' => (float) $this->basic_salary * 52 / 12,
+            default => (float) $this->basic_salary,
+        };
+    }
+
+    /** One day's pay, whatever the salary type. */
+    public function dailyRate(): float
+    {
+        if ((float) $this->daily_rate > 0) {
+            return (float) $this->daily_rate;
+        }
+
+        if ((float) $this->hourly_rate > 0) {
+            return (float) $this->hourly_rate * 8;
+        }
+
+        return round($this->monthlyRate() / 22, 2);
+    }
+
+    /** One hour's pay, whatever the salary type. */
+    public function hourlyRate(): float
+    {
+        if ((float) $this->hourly_rate > 0) {
+            return (float) $this->hourly_rate;
+        }
+
+        return round($this->dailyRate() / 8, 2);
+    }
+
     public function getFullNameAttribute(): string
     {
         return "{$this->first_name} {$this->last_name}";
