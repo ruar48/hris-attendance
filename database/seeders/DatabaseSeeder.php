@@ -18,5 +18,6 @@ class DatabaseSeeder extends Seeder
         $this->call(EmployeeGovernmentBenefitsSeeder::class);
         $this->call(TayabasTimesheetSeeder::class);
         $this->call(SiteManningSeeder::class);
+        $this->call(BatangasTimesheetSeeder::class);
     }
 }

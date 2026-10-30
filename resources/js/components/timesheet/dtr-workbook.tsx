@@ -30,6 +30,8 @@ type Day = {
     break_out: string;
     break_in: string;
     time_out: string;
+    note_time_in: string;
+    note_time_out: string;
     day_status: DayStatus;
     remarks: string;
     result: DayResult | null;
@@ -93,7 +95,12 @@ type Props = TimesheetPageProps & {
 const TIME_FIELDS = ['time_in', 'break_out', 'break_in', 'time_out'] as const;
 type TimeField = (typeof TIME_FIELDS)[number];
 
-type Row = Pick<Day, 'date' | TimeField | 'day_status' | 'remarks'>;
+// Arrival/departure jotted outside the form, like the small box beside the
+// paper DTR. Kept as notes; never paid until copied into the form.
+const NOTE_FIELDS = ['note_time_in', 'note_time_out'] as const;
+type NoteField = (typeof NOTE_FIELDS)[number];
+
+type Row = Pick<Day, 'date' | TimeField | NoteField | 'day_status' | 'remarks'>;
 
 const STATUS_LABELS: Record<DayStatus, string> = {
     worked: 'Worked',
@@ -107,6 +114,8 @@ const FIELD_LABELS: Record<string, string> = {
     break_out: 'AM departure',
     break_in: 'PM arrival',
     time_out: 'PM departure',
+    note_time_in: 'outside note arrival',
+    note_time_out: 'outside note departure',
     day_status: 'status',
     remarks: 'remarks',
 };
@@ -123,12 +132,16 @@ const STATUS_WORDS: Record<string, DayStatus> = {
     leave: 'leave',
 };
 
-// Grid columns used for keyboard movement: remarks margin, then the four times.
-const NAV_COLUMNS = 5;
+// Grid columns used for keyboard movement: remarks margin, the four times,
+// then the two outside notes.
+const NAV_COLUMNS = 7;
 
 // Sheet palette taken from the workbook.
 const PAPER = 'bg-[#f6e3ad]';
 const INK_BORDER = 'border border-[#3b3220]';
+// The small gold-headed box of times noted beside the form.
+const NOTE_BORDER = 'border border-[#9e9e9e] bg-white';
+const NOTE_HEAD = 'border border-[#9e9e9e] bg-[#f1c232] text-center text-[12px] font-bold';
 
 const toRow = (day: Day): Row => ({
     date: day.date,
@@ -136,12 +149,14 @@ const toRow = (day: Day): Row => ({
     break_out: day.break_out,
     break_in: day.break_in,
     time_out: day.time_out,
+    note_time_in: day.note_time_in,
+    note_time_out: day.note_time_out,
     day_status: day.day_status,
     remarks: day.remarks,
 });
 
 const sameRow = (a: Row, b: Row) =>
-    TIME_FIELDS.every((field) => a[field] === b[field]) &&
+    [...TIME_FIELDS, ...NOTE_FIELDS].every((field) => a[field] === b[field]) &&
     a.day_status === b.day_status &&
     a.remarks.trim() === b.remarks.trim();
 
@@ -208,7 +223,7 @@ function interpret(row: Row): Row {
 
     const next = { ...row };
 
-    for (const field of TIME_FIELDS) {
+    for (const field of [...TIME_FIELDS, ...NOTE_FIELDS]) {
         const normalized = normalizeTime(row[field]);
 
         if (normalized !== null) {
@@ -558,13 +573,49 @@ type DtrFormProps = {
     onDirtyChange: (month: string, count: number) => void;
 };
 
+/** Unsaved days kept on this device, so a refresh, crash or brownout loses nothing. */
+type Draft = { savedAt: string; rows: Record<string, Row> };
+
+const draftKey = (employeeId: number, month: string) => `dtr-draft:${employeeId}:${month}`;
+
+function readDraft(key: string): Draft | null {
+    try {
+        const raw = window.localStorage.getItem(key);
+
+        return raw ? (JSON.parse(raw) as Draft) : null;
+    } catch {
+        return null;
+    }
+}
+
+function writeDraft(key: string, draft: Draft | null): void {
+    try {
+        if (draft) {
+            window.localStorage.setItem(key, JSON.stringify(draft));
+        } else {
+            window.localStorage.removeItem(key);
+        }
+    } catch {
+        // Storage unavailable (private window, full): the draft just isn't kept.
+    }
+}
+
 /**
  * One month's DAILY TIME RECORD, encoded like the paper form. It keeps its
  * own unsaved edits and saves on its own, so saving one month never throws
- * away what's being typed into another.
+ * away what's being typed into another. Unsaved edits are also kept as a
+ * draft on this device and restored when the page is opened again.
  */
 function DtrForm({ employee, employeeIndex, month, days, officialHours, inCharge, onDirtyChange }: DtrFormProps) {
-    const [rows, setRows] = useState<Row[]>(() => days.map(toRow));
+    const key = draftKey(employee.id, month);
+    const [rows, setRows] = useState<Row[]>(() => {
+        const draft = readDraft(key);
+
+        return days.map((day) => draft?.rows[day.date] ?? toRow(day));
+    });
+    // When unsaved days were brought back from a draft, and when that draft was last kept.
+    const [restoredAt] = useState(() => readDraft(key)?.savedAt ?? null);
+    const [showRestored, setShowRestored] = useState(restoredAt !== null);
     const [errors, setErrors] = useState<Record<string, string>>({});
     const [saving, setSaving] = useState(false);
     // Fresh props arrive after any form saves. Only reset this form when its
@@ -591,6 +642,19 @@ function DtrForm({ employee, employeeIndex, month, days, officialHours, inCharge
     }, [month, dirty.length, onDirtyChange]);
 
     useEffect(() => () => onDirtyChange(month, 0), [month, onDirtyChange]);
+
+    // Keep every unsaved day as a draft on this device as it's typed; a
+    // save or discard leaves nothing unsaved, which clears the draft.
+    useEffect(() => {
+        const changed = rows.filter((row, i) => days[i] && !sameRow(interpret(row), toRow(days[i])));
+
+        writeDraft(
+            key,
+            changed.length > 0
+                ? { savedAt: new Date().toISOString(), rows: Object.fromEntries(changed.map((row) => [row.date, row])) }
+                : null,
+        );
+    }, [rows, days, key]);
 
     const totals = useMemo(
         () =>
@@ -646,7 +710,7 @@ function DtrForm({ employee, employeeIndex, month, days, officialHours, inCharge
             return;
         }
 
-        if (dirty.some((row) => TIME_FIELDS.some((field) => normalizeTime(row[field]) === null))) {
+        if (dirty.some((row) => [...TIME_FIELDS, ...NOTE_FIELDS].some((field) => normalizeTime(row[field]) === null))) {
             toast.error(`Fix the highlighted times in ${monthLabel(month, 'long')} before saving.`);
 
             return;
@@ -661,6 +725,8 @@ function DtrForm({ employee, employeeIndex, month, days, officialHours, inCharge
                 break_out: worked ? toPayloadTime(row.break_out) : null,
                 break_in: worked ? toPayloadTime(row.break_in) : null,
                 time_out: worked ? toPayloadTime(row.time_out) : null,
+                note_time_in: toPayloadTime(row.note_time_in),
+                note_time_out: toPayloadTime(row.note_time_out),
                 day_status: row.day_status,
                 remarks: row.remarks.trim() || null,
             };
@@ -712,8 +778,11 @@ function DtrForm({ employee, employeeIndex, month, days, officialHours, inCharge
                     type="button"
                     disabled={dirty.length === 0 || saving}
                     onClick={() => {
-                        setRows(days.map(toRow));
-                        setErrors({});
+                        if (window.confirm(`Discard ${dirty.length} unsaved ${dirty.length === 1 ? 'day' : 'days'} in ${monthLabel(month, 'long')}?`)) {
+                            setRows(days.map(toRow));
+                            setErrors({});
+                            setShowRestored(false);
+                        }
                     }}
                     className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-slate-700 hover:bg-slate-200/60 disabled:opacity-40"
                 >
@@ -731,6 +800,19 @@ function DtrForm({ employee, employeeIndex, month, days, officialHours, inCharge
                 </button>
             </div>
 
+            {showRestored && restoredAt && dirty.length > 0 && (
+                <div className="dtr-no-print mb-2 ml-40 flex items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                    <span className="flex-1">
+                        Restored {dirty.length} unsaved {dirty.length === 1 ? 'day' : 'days'} from your draft (last typed{' '}
+                        {new Date(restoredAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                        ). Check them, then click <b>Save</b>.
+                    </span>
+                    <button type="button" className="text-amber-800 hover:underline" onClick={() => setShowRestored(false)}>
+                        OK
+                    </button>
+                </div>
+            )}
+
             <table className="border-collapse font-[Calibri,Carlito,Arial,sans-serif] text-[13px] text-[#1f1a10]">
                 <colgroup>
                     <col className="w-40" />
@@ -741,6 +823,11 @@ function DtrForm({ employee, employeeIndex, month, days, officialHours, inCharge
                     <col className="w-[88px]" />
                     <col className="w-[96px]" />
                     <col className="w-[96px]" />
+                    {/* Outside notes: a gap, arrival, departure, and the copy-in button. */}
+                    <col className="w-4" />
+                    <col className="w-[76px]" />
+                    <col className="w-[76px]" />
+                    <col className="w-7" />
                     <col className="w-28" />
                 </colgroup>
 
@@ -832,6 +919,14 @@ function DtrForm({ employee, employeeIndex, month, days, officialHours, inCharge
                         <td className={`${cell} text-center text-[12px] font-semibold`} colSpan={2}>
                             overtime/Lates
                         </td>
+                        <td />
+                        <td className={NOTE_HEAD} title="Times noted outside the form — not paid until copied in">
+                            AM
+                        </td>
+                        <td className={NOTE_HEAD} title="Times noted outside the form — not paid until copied in">
+                            PM
+                        </td>
+                        <td />
                         <td className="dtr-no-print px-2 text-[11px] font-medium text-slate-500">Mark day</td>
                     </tr>
                     <tr className="text-[11px]">
@@ -843,6 +938,8 @@ function DtrForm({ employee, employeeIndex, month, days, officialHours, inCharge
                         <td className={`${cell} text-center`}>Hours/Minutes</td>
                         <td className={`${cell} text-center`}>Hours/Minutes</td>
                         <td />
+                        <td className={`${NOTE_BORDER} bg-white text-center font-bold`}>Arrival</td>
+                        <td className={`${NOTE_BORDER} bg-white text-center font-bold`}>Departure</td>
                     </tr>
                 </thead>
 
@@ -937,6 +1034,46 @@ function DtrForm({ employee, employeeIndex, month, days, officialHours, inCharge
                                         <td className={`${INK_BORDER} ${highlight} px-1.5`}>{formatHours(lates)}</td>
                                     </>
                                 )}
+
+                                {/* Outside the form: times noted beside it, kept as notes only. */}
+                                <td />
+                                {NOTE_FIELDS.map((field, n) => {
+                                    const bad = normalizeTime(row[field]) === null;
+
+                                    return (
+                                        <td key={field} className={`${NOTE_BORDER} p-0`}>
+                                            <input
+                                                data-cell={`${month}:${i}-${n + 5}`}
+                                                aria-label={`${FIELD_LABELS[field]} on ${monthLabel(month, 'short')} ${day.day}`}
+                                                className={`${timeInput} ${bad ? 'bg-red-100 text-red-700' : ''}`}
+                                                value={row[field]}
+                                                title={bad ? 'Not a time' : undefined}
+                                                onFocus={selectAll}
+                                                onChange={(event) => update(i, { [field]: event.target.value })}
+                                                onBlur={() => commit(i)}
+                                                onKeyDown={(event) => onKeyDown(event, i, n + 5)}
+                                            />
+                                        </td>
+                                    );
+                                })}
+                                <td className="dtr-no-print p-0 text-center">
+                                    {(row.note_time_in || row.note_time_out) && (
+                                        <button
+                                            type="button"
+                                            title="Copy these times into the form (arrival → AM Arrival, departure → PM Departure)"
+                                            className="rounded px-1 text-[13px] font-bold text-[#b45309] hover:bg-amber-100"
+                                            onClick={() =>
+                                                update(i, {
+                                                    day_status: 'worked',
+                                                    time_in: row.note_time_in || row.time_in,
+                                                    time_out: row.note_time_out || row.time_out,
+                                                })
+                                            }
+                                        >
+                                            ←
+                                        </button>
+                                    )}
+                                </td>
 
                                 <td className="dtr-no-print p-0 pl-1">
                                     <select

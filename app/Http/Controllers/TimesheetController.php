@@ -33,6 +33,9 @@ class TimesheetController extends Controller
     /** The four DTR columns, in paper order: AM arrival/departure, PM arrival/departure. */
     protected const TIME_FIELDS = ['time_in', 'break_out', 'break_in', 'time_out'];
 
+    /** Arrival/departure jotted outside the form; kept, never paid. */
+    protected const NOTE_FIELDS = ['note_time_in', 'note_time_out'];
+
     /** How many monthly DTR forms an employee's tab can show at once. */
     protected const SPANS = [1, 3, 6, 12];
 
@@ -295,6 +298,8 @@ class TimesheetController extends Controller
             'rows.*.break_out' => ['nullable', 'date_format:H:i'],
             'rows.*.break_in' => ['nullable', 'date_format:H:i'],
             'rows.*.time_out' => ['nullable', 'date_format:H:i'],
+            'rows.*.note_time_in' => ['nullable', 'date_format:H:i'],
+            'rows.*.note_time_out' => ['nullable', 'date_format:H:i'],
             'rows.*.day_status' => ['required', Rule::in(DtrLog::DAY_STATUSES)],
             'rows.*.remarks' => ['nullable', 'string', 'max:255'],
         ]);
@@ -335,7 +340,7 @@ class TimesheetController extends Controller
     /**
      * Apply one encoded row and log what moved. Returns whether anything changed.
      *
-     * @param  array{date: string, time_in?: string|null, break_out?: string|null, break_in?: string|null, time_out?: string|null, day_status: string, remarks?: string|null}  $row
+     * @param  array{date: string, time_in?: string|null, break_out?: string|null, break_in?: string|null, time_out?: string|null, note_time_in?: string|null, note_time_out?: string|null, day_status: string, remarks?: string|null}  $row
      */
     protected function saveRow(Employee $employee, array $row, ?int $userId): bool
     {
@@ -344,11 +349,14 @@ class TimesheetController extends Controller
             'break_out' => $this->toDbTime($row['break_out'] ?? null),
             'break_in' => $this->toDbTime($row['break_in'] ?? null),
             'time_out' => $this->toDbTime($row['time_out'] ?? null),
+            'note_time_in' => $this->toDbTime($row['note_time_in'] ?? null),
+            'note_time_out' => $this->toDbTime($row['note_time_out'] ?? null),
             'day_status' => $row['day_status'],
             'reason' => filled($row['remarks'] ?? null) ? trim($row['remarks']) : null,
         ];
 
-        // Times only mean something on a worked day.
+        // Times only mean something on a worked day. Outside notes are kept
+        // whatever the day is marked.
         if ($new['day_status'] !== 'worked') {
             foreach (self::TIME_FIELDS as $field) {
                 $new[$field] = null;
@@ -356,7 +364,7 @@ class TimesheetController extends Controller
         }
 
         $isBlank = $new['day_status'] === 'worked'
-            && collect(self::TIME_FIELDS)->every(fn (string $field) => $new[$field] === null)
+            && collect([...self::TIME_FIELDS, ...self::NOTE_FIELDS])->every(fn (string $field) => $new[$field] === null)
             && $new['reason'] === null;
 
         $existing = DtrLog::query()
@@ -370,6 +378,8 @@ class TimesheetController extends Controller
                 'break_out' => $existing->break_out,
                 'break_in' => $existing->break_in,
                 'time_out' => $existing->time_out,
+                'note_time_in' => $existing->note_time_in,
+                'note_time_out' => $existing->note_time_out,
                 'day_status' => $existing->day_status,
                 'reason' => $existing->reason,
             ]
@@ -418,7 +428,7 @@ class TimesheetController extends Controller
     {
         $changes = [];
 
-        foreach (['day_status', ...self::TIME_FIELDS, 'reason'] as $field) {
+        foreach (['day_status', ...self::TIME_FIELDS, ...self::NOTE_FIELDS, 'reason'] as $field) {
             $before = $old[$field] ?? null;
             $after = $new[$field] ?? null;
 
@@ -502,6 +512,8 @@ class TimesheetController extends Controller
                 'break_out' => $entry?->day_status === 'worked' ? $this->toInputTime($entry->break_out) : '',
                 'break_in' => $entry?->day_status === 'worked' ? $this->toInputTime($entry->break_in) : '',
                 'time_out' => $entry?->day_status === 'worked' ? $this->toInputTime($entry->time_out) : '',
+                'note_time_in' => $this->toInputTime($entry?->note_time_in),
+                'note_time_out' => $this->toInputTime($entry?->note_time_out),
                 'day_status' => $entry?->day_status ?? 'worked',
                 'remarks' => $entry?->reason ?? '',
                 'result' => $record ? [
@@ -579,7 +591,7 @@ class TimesheetController extends Controller
         }
 
         return match ($field) {
-            'time_in', 'break_out', 'break_in', 'time_out' => substr($value, 0, 5),
+            'time_in', 'break_out', 'break_in', 'time_out', 'note_time_in', 'note_time_out' => substr($value, 0, 5),
             'day_status' => str_replace('_', ' ', $value),
             default => $value,
         };

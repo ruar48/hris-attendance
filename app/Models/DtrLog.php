@@ -22,6 +22,8 @@ class DtrLog extends Model
         'break_out',
         'break_in',
         'time_out',
+        'note_time_in',
+        'note_time_out',
         'day_status',
         'reason',
         'status',

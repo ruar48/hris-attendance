@@ -197,6 +197,21 @@ test('the AM departure and PM arrival columns are saved and logged', function ()
         ->and(AttendanceAuditLog::query()->sole()->changes['break_out'])->toBe([null, '12:00']);
 });
 
+test('times noted outside the form are kept and logged but never paid', function () {
+    saveTimesheet([[
+        ...sheetRow('2026-10-01', null, null),
+        'note_time_in' => '06:54',
+        'note_time_out' => '16:06',
+    ]])->assertSessionHasNoErrors();
+
+    $entry = DtrLog::query()->sole();
+
+    expect($entry->note_time_in)->toBe('06:54:00')
+        ->and($entry->note_time_out)->toBe('16:06:00')
+        ->and(AttendanceRecord::query()->count())->toBe(0)
+        ->and(AttendanceAuditLog::query()->sole()->changes['note_time_in'])->toBe([null, '06:54']);
+});
+
 test('saving an unchanged day writes no audit entry', function () {
     saveTimesheet([sheetRow('2026-01-05', '08:00', '17:00')]);
     saveTimesheet([sheetRow('2026-01-05', '08:00', '17:00')]);
