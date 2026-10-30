@@ -58,7 +58,26 @@ test('the time sheet lists every day of the selected month', function () {
         ->assertInertia(fn (AssertableInertia $page) => $page
             ->component('timesheet/index')
             ->where('month', '2026-02')
-            ->has('days', 28));
+            ->where('span', 1)
+            ->has('sheets', 1)
+            ->where('sheets.0.month', '2026-02')
+            ->has('sheets.0.days', 28));
+});
+
+test('an employee\'s tab can show several monthly forms, oldest first, like the workbook', function () {
+    $this->get(route('timesheet.index', ['employee_id' => $this->employee->id, 'month' => '2026-02', 'span' => 3]))
+        ->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('span', 3)
+            ->has('sheets', 3)
+            ->where('sheets.0.month', '2025-12')
+            ->has('sheets.0.days', 31)
+            ->where('sheets.2.month', '2026-02'));
+
+    // The full-screen workbook opens an employee's tab on six months.
+    $this->get(route('timesheet.workbook', ['employee_id' => $this->employee->id, 'month' => '2026-10', 'sheet' => 'dtr']))
+        ->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('span', 6)
+            ->where('sheets.0.month', '2026-05'));
 });
 
 test('the full-screen workbook shows the schedule tab with a row per person', function () {

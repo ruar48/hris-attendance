@@ -33,6 +33,9 @@ class TimesheetController extends Controller
     /** The four DTR columns, in paper order: AM arrival/departure, PM arrival/departure. */
     protected const TIME_FIELDS = ['time_in', 'break_out', 'break_in', 'time_out'];
 
+    /** How many monthly DTR forms an employee's tab can show at once. */
+    protected const SPANS = [1, 3, 6, 12];
+
     /** Manning tab sections, in the client's order, matched against each position. */
     protected const MANNING_GROUPS = [
         'Opa/OFD/ Inventory Analyst' => '/opa|ofd|inventory/i',
@@ -66,7 +69,6 @@ class TimesheetController extends Controller
      */
     public function workbook(Request $request, ScheduleSheetBuilder $builder): Response
     {
-        $props = $this->sheetProps($request);
         $site = $this->site($request);
         $month = $this->monthStart($request->string('month')->toString());
 
@@ -75,6 +77,10 @@ class TimesheetController extends Controller
         if (! in_array($sheet, ['manning', 'schedule', 'dtr'], true)) {
             $sheet = $request->filled('employee_id') ? 'dtr' : 'manning';
         }
+
+        // An employee's tab shows several months, like the client's; the
+        // DTR forms are only loaded when that tab is open.
+        $props = $this->sheetProps($request, defaultSpan: 6, withSheets: $sheet === 'dtr');
 
         return Inertia::render('timesheet/workbook', [
             ...$props,
@@ -147,7 +153,7 @@ class TimesheetController extends Controller
     /**
      * @return array<string, mixed>
      */
-    protected function sheetProps(Request $request): array
+    protected function sheetProps(Request $request, int $defaultSpan = 1, bool $withSheets = true): array
     {
         $site = $this->site($request);
 
@@ -160,8 +166,21 @@ class TimesheetController extends Controller
 
         $employee = $employees->firstWhere('id', $request->integer('employee_id')) ?? $employees->first();
         $month = $this->monthStart($request->string('month')->toString());
-        $start = $month->copy();
-        $end = $month->copy()->endOfMonth();
+
+        // How many monthly forms to show, ending at the chosen month — like an
+        // employee's tab in the client's workbook, one DTR per month.
+        $span = in_array($request->integer('span'), self::SPANS, true) ? $request->integer('span') : $defaultSpan;
+        $first = $month->copy()->subMonthsNoOverflow($span - 1);
+        $sheets = [];
+
+        if ($employee && $withSheets) {
+            for ($m = $first->copy(); $m->lte($month); $m->addMonthNoOverflow()) {
+                $sheets[] = [
+                    'month' => $m->format('Y-m'),
+                    'days' => $this->days($employee, $m->copy(), $m->copy()->endOfMonth()),
+                ];
+            }
+        }
 
         return [
             'sites' => $this->siteOptions(),
@@ -169,8 +188,9 @@ class TimesheetController extends Controller
             'employees' => $employees,
             'employee' => $employee,
             'month' => $month->format('Y-m'),
-            'days' => $employee ? $this->days($employee, $start, $end) : [],
-            'history' => $employee ? $this->history($employee, $start, $end) : [],
+            'span' => $span,
+            'sheets' => $sheets,
+            'history' => $employee && $withSheets ? $this->history($employee, $first, $month->copy()->endOfMonth()) : [],
             // Printed on the form header: the person's regular Manning
             // schedule time, else the company default.
             'official_hours' => $this->officialHours($employee ? Employee::query()->find($employee->id) : null),
