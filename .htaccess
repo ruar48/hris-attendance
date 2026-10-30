@@ -1,0 +1,12 @@
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Serve the Laravel app from public/ when the web root is the repo root
+    RewriteCond %{REQUEST_URI} !^/public/
+    RewriteRule ^(.*)$ public/$1 [L]
+</IfModule>
+
+# Never expose environment or VCS files
+<FilesMatch "^\.(env|git)">
+    Require all denied
+</FilesMatch>
