@@ -445,6 +445,37 @@ export function DtrWorkbook({
                     </div>
                 </div>
 
+                {/* Sheet tabs, like the workbook's: Manning, the schedule, then one per employee. Kept at the top so they stay in reach. */}
+                <div className="dtr-no-print sticky top-0 z-20 flex items-stretch border-b border-slate-300 bg-[#f1f3f4] text-[13px]">
+                    <span className="flex items-center px-3 text-slate-500">
+                        <Menu className="size-4" />
+                    </span>
+                    <div className="flex overflow-x-auto">
+                        {fullScreen && (
+                            <SheetTab
+                                label="MANNING"
+                                active={sheet === 'manning'}
+                                onClick={() => visit({ sheet: 'manning' })}
+                            />
+                        )}
+                        {fullScreen && (
+                            <SheetTab
+                                label="SCHEDULE"
+                                active={sheet === 'schedule'}
+                                onClick={() => visit({ sheet: 'schedule' })}
+                            />
+                        )}
+                        {employees.map((e) => (
+                            <SheetTab
+                                key={e.id}
+                                label={`${e.last_name}, ${e.first_name}`}
+                                active={sheet === 'dtr' && e.id === employee?.id}
+                                onClick={() => visit({ employee_id: e.id, sheet: 'dtr' })}
+                            />
+                        ))}
+                    </div>
+                </div>
+
                 {/* The sheet. */}
                 <div className="flex-1 overflow-auto bg-white bg-[linear-gradient(#e2e3e3_1px,transparent_1px),linear-gradient(90deg,#e2e3e3_1px,transparent_1px)] bg-[size:100px_21px] px-4 py-6">
                     {sheet === 'manning' && manning ? (
@@ -526,37 +557,6 @@ export function DtrWorkbook({
                             </section>
                         </>
                     )}
-                </div>
-
-                {/* Sheet tabs, like the workbook's: Manning, the schedule, then one per employee. */}
-                <div className="dtr-no-print sticky bottom-0 flex items-stretch border-t border-slate-300 bg-[#f1f3f4] text-[13px]">
-                    <span className="flex items-center px-3 text-slate-500">
-                        <Menu className="size-4" />
-                    </span>
-                    <div className="flex overflow-x-auto">
-                        {fullScreen && (
-                            <SheetTab
-                                label="MANNING"
-                                active={sheet === 'manning'}
-                                onClick={() => visit({ sheet: 'manning' })}
-                            />
-                        )}
-                        {fullScreen && (
-                            <SheetTab
-                                label="SCHEDULE"
-                                active={sheet === 'schedule'}
-                                onClick={() => visit({ sheet: 'schedule' })}
-                            />
-                        )}
-                        {employees.map((e) => (
-                            <SheetTab
-                                key={e.id}
-                                label={`${e.last_name}, ${e.first_name}`}
-                                active={sheet === 'dtr' && e.id === employee?.id}
-                                onClick={() => visit({ employee_id: e.id, sheet: 'dtr' })}
-                            />
-                        ))}
-                    </div>
                 </div>
             </div>
         </>
