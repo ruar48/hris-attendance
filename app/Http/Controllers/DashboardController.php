@@ -69,50 +69,6 @@ class DashboardController extends Controller
                 'payday' => $period->payday?->toDateString(),
                 'status' => $period->status,
             ] : null,
-            'features' => [
-                [
-                    'key' => 'timesheet',
-                    'title' => 'Encoded Time Sheet to Payroll',
-                    'description' => 'HR encodes daily time records; every change is logged.',
-                    'status' => 'active',
-                ],
-                [
-                    'key' => 'auto_deductions',
-                    'title' => 'Automatic Deductions',
-                    'description' => 'Late, undertime, and cash advance deductions.',
-                    'status' => 'active',
-                ],
-                [
-                    'key' => 'holiday_pay',
-                    'title' => 'Automatic Add of Holiday Pay',
-                    'description' => 'Holiday pay is calculated and added automatically.',
-                    'status' => 'active',
-                ],
-                [
-                    'key' => 'sunday_route',
-                    'title' => 'Automatic Add of Sunday Route',
-                    'description' => 'Sunday route wage applied at a different rate.',
-                    'status' => 'active',
-                ],
-                [
-                    'key' => 'overtime',
-                    'title' => "Automatic Add of OT's",
-                    'description' => 'Overtime hours computed from encoded time-out.',
-                    'status' => 'active',
-                ],
-                [
-                    'key' => 'gov_benefits',
-                    'title' => 'Government Benefits',
-                    'description' => 'SSS, PhilHealth, and Pag-IBIG.',
-                    'status' => 'active',
-                ],
-                [
-                    'key' => 'thirteenth',
-                    'title' => 'Automatic Computation of 13th Month Pay',
-                    'description' => '13th month pay computed and included when due.',
-                    'status' => 'active',
-                ],
-            ],
             'recentRuns' => $recentRuns,
             'notifications' => $notifications,
             'samplePayslip' => $samplePayslip ? [
