@@ -139,7 +139,7 @@ class TayabasTimesheetSeeder extends Seeder
         $shiftOptions = OptionList::query()->category('shift_schedule')->get()->keyBy('value');
 
         foreach (self::MANNING as $code => $shift) {
-            Employee::query()->where('employee_code', $code)->update([
+            Employee::query()->where('employee_code', (string) $code)->update([
                 'work_location' => 'Tayabas',
                 'shift_schedule' => $shift,
                 'time_in_schedule' => $shiftOptions->get($shift)?->time_in,
@@ -161,7 +161,7 @@ class TayabasTimesheetSeeder extends Seeder
     protected function seedDecemberSchedule(array $shifts): void
     {
         $employees = Employee::query()
-            ->whereIn('employee_code', array_keys(self::DECEMBER_SCHEDULE))
+            ->whereIn('employee_code', array_map('strval', array_keys(self::DECEMBER_SCHEDULE)))
             ->get()
             ->keyBy('employee_code');
 

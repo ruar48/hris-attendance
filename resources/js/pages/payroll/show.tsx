@@ -125,6 +125,7 @@ export default function PayrollShow({ run, payslips }: Props) {
                                             <Line label="Holiday" value={payslip.holiday_pay} />
                                             <Line label="Sunday Route" value={payslip.sunday_route} />
                                             <Line label="OT" value={payslip.overtime_pay} />
+                                            <Line label="Night diff" value={payslip.night_diff_pay} />
                                             {payslip.thirteenth_month > 0 && (
                                                 <Line label="13th Month" value={payslip.thirteenth_month} />
                                             )}

@@ -212,6 +212,20 @@ test('times noted outside the form are kept and logged but never paid', function
         ->and(AttendanceAuditLog::query()->sole()->changes['note_time_in'])->toBe([null, '06:54']);
 });
 
+test('an AWOL day and text written outside the form are kept and logged', function () {
+    saveTimesheet([[
+        ...sheetRow('2026-08-03', null, null, 'awol'),
+        'note_text' => 'PLS. IR',
+    ]])->assertSessionHasNoErrors();
+
+    $entry = DtrLog::query()->sole();
+
+    expect($entry->day_status)->toBe('awol')
+        ->and($entry->note_text)->toBe('PLS. IR')
+        ->and(AttendanceRecord::query()->count())->toBe(0)
+        ->and(AttendanceAuditLog::query()->sole()->changes['note_text'])->toBe([null, 'PLS. IR']);
+});
+
 test('saving an unchanged day writes no audit entry', function () {
     saveTimesheet([sheetRow('2026-01-05', '08:00', '17:00')]);
     saveTimesheet([sheetRow('2026-01-05', '08:00', '17:00')]);

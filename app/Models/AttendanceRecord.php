@@ -18,11 +18,13 @@ class AttendanceRecord extends Model
         'late_minutes',
         'undertime_minutes',
         'ot_minutes',
+        'night_minutes',
         'is_holiday',
         'is_sunday',
         'holiday_pay',
         'sunday_pay',
         'ot_pay',
+        'night_diff_pay',
         'late_deduction',
         'undertime_deduction',
     ];
@@ -37,6 +39,7 @@ class AttendanceRecord extends Model
             'holiday_pay' => 'decimal:2',
             'sunday_pay' => 'decimal:2',
             'ot_pay' => 'decimal:2',
+            'night_diff_pay' => 'decimal:2',
             'late_deduction' => 'decimal:2',
             'undertime_deduction' => 'decimal:2',
         ];

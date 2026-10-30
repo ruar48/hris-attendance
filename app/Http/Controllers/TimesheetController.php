@@ -104,12 +104,45 @@ class TimesheetController extends Controller
             'shift_schedule' => ['sometimes', 'nullable', Rule::in(OptionList::values('shift_schedule'))],
         ]);
 
+        $shiftLabels = OptionList::query()->category('shift_schedule')->pluck('label', 'value');
+        $changes = [];
+
+        if (array_key_exists('work_location', $data) && $data['work_location'] !== $employee->work_location) {
+            $changes['site'] = [$employee->work_location, $data['work_location']];
+        }
+
         if (array_key_exists('shift_schedule', $data)) {
             // The employee record keeps the shift's times alongside it, the
             // same way the Employment Details tab saves a shift.
             $shift = OptionList::query()->category('shift_schedule')->where('value', $data['shift_schedule'])->first();
             $data['time_in_schedule'] = $shift?->time_in;
             $data['time_out_schedule'] = $shift?->time_out;
+
+            if ($data['shift_schedule'] !== $employee->shift_schedule) {
+                $changes['shift_schedule'] = [
+                    $shiftLabels[$employee->shift_schedule ?? ''] ?? $employee->shift_schedule,
+                    $shiftLabels[$data['shift_schedule'] ?? ''] ?? $data['shift_schedule'],
+                ];
+            }
+        }
+
+        if ($changes !== []) {
+            AttendanceAuditLog::query()->create([
+                'user_id' => $request->user()?->id,
+                'employee_id' => $employee->id,
+                // Joining a site is logged under the new site; leaving, under the old one.
+                'site' => $changes['site'][1] ?? $employee->work_location,
+                'work_date' => null,
+                // Joining a site reads as added, leaving it as deleted.
+                'action' => match (true) {
+                    isset($changes['site']) && $changes['site'][0] === null => 'created',
+                    isset($changes['site']) && $changes['site'][1] === null => 'deleted',
+                    default => 'updated',
+                },
+                'source' => 'manning',
+                'changes' => $changes,
+                'ip_address' => $request->ip(),
+            ]);
         }
 
         $employee->update($data);
@@ -165,7 +198,7 @@ class TimesheetController extends Controller
             ->when($site, fn ($query) => $query->where('work_location', $site))
             ->orderBy('last_name')
             ->orderBy('first_name')
-            ->get(['id', 'employee_code', 'first_name', 'last_name', 'position']);
+            ->get(['id', 'employee_code', 'first_name', 'last_name', 'position', 'work_location']);
 
         $employee = $employees->firstWhere('id', $request->integer('employee_id')) ?? $employees->first();
         $month = $this->monthStart($request->string('month')->toString());
@@ -300,14 +333,17 @@ class TimesheetController extends Controller
             'rows.*.time_out' => ['nullable', 'date_format:H:i'],
             'rows.*.note_time_in' => ['nullable', 'date_format:H:i'],
             'rows.*.note_time_out' => ['nullable', 'date_format:H:i'],
+            'rows.*.note_text' => ['nullable', 'string', 'max:255'],
             'rows.*.day_status' => ['required', Rule::in(DtrLog::DAY_STATUSES)],
             'rows.*.remarks' => ['nullable', 'string', 'max:255'],
         ]);
 
         $errors = [];
         foreach ($data['rows'] as $i => $row) {
-            if (! empty($row['time_in']) && ! empty($row['time_out']) && $row['time_out'] <= $row['time_in']) {
-                $errors["rows.{$i}.time_out"] = "Time out on {$row['date']} must be later than time in.";
+            // A time out earlier than the time in is an overnight stay (left the
+            // next morning); only the very same time can't be right.
+            if (! empty($row['time_in']) && ! empty($row['time_out']) && $row['time_out'] === $row['time_in']) {
+                $errors["rows.{$i}.time_out"] = "Time out on {$row['date']} is the same as time in.";
             }
         }
         if ($errors !== []) {
@@ -340,7 +376,7 @@ class TimesheetController extends Controller
     /**
      * Apply one encoded row and log what moved. Returns whether anything changed.
      *
-     * @param  array{date: string, time_in?: string|null, break_out?: string|null, break_in?: string|null, time_out?: string|null, note_time_in?: string|null, note_time_out?: string|null, day_status: string, remarks?: string|null}  $row
+     * @param  array{date: string, time_in?: string|null, break_out?: string|null, break_in?: string|null, time_out?: string|null, note_time_in?: string|null, note_time_out?: string|null, note_text?: string|null, day_status: string, remarks?: string|null}  $row
      */
     protected function saveRow(Employee $employee, array $row, ?int $userId): bool
     {
@@ -351,6 +387,7 @@ class TimesheetController extends Controller
             'time_out' => $this->toDbTime($row['time_out'] ?? null),
             'note_time_in' => $this->toDbTime($row['note_time_in'] ?? null),
             'note_time_out' => $this->toDbTime($row['note_time_out'] ?? null),
+            'note_text' => filled($row['note_text'] ?? null) ? trim($row['note_text']) : null,
             'day_status' => $row['day_status'],
             'reason' => filled($row['remarks'] ?? null) ? trim($row['remarks']) : null,
         ];
@@ -365,6 +402,7 @@ class TimesheetController extends Controller
 
         $isBlank = $new['day_status'] === 'worked'
             && collect([...self::TIME_FIELDS, ...self::NOTE_FIELDS])->every(fn (string $field) => $new[$field] === null)
+            && $new['note_text'] === null
             && $new['reason'] === null;
 
         $existing = DtrLog::query()
@@ -380,6 +418,7 @@ class TimesheetController extends Controller
                 'time_out' => $existing->time_out,
                 'note_time_in' => $existing->note_time_in,
                 'note_time_out' => $existing->note_time_out,
+                'note_text' => $existing->note_text,
                 'day_status' => $existing->day_status,
                 'reason' => $existing->reason,
             ]
@@ -428,7 +467,7 @@ class TimesheetController extends Controller
     {
         $changes = [];
 
-        foreach (['day_status', ...self::TIME_FIELDS, ...self::NOTE_FIELDS, 'reason'] as $field) {
+        foreach (['day_status', ...self::TIME_FIELDS, ...self::NOTE_FIELDS, 'note_text', 'reason'] as $field) {
             $before = $old[$field] ?? null;
             $after = $new[$field] ?? null;
 
@@ -471,7 +510,7 @@ class TimesheetController extends Controller
      */
     protected function days(Employee $employee, Carbon $start, Carbon $end): array
     {
-        $holidays = Holiday::mapForPeriod($start, $end);
+        $holidays = Holiday::mapForPeriod($start, $end, $employee->work_location);
         $schedules = Schedule::mapForPeriod($employee->id, $start, $end);
 
         $entries = DtrLog::query()
@@ -516,6 +555,7 @@ class TimesheetController extends Controller
                 'time_out' => $entry?->day_status === 'worked' ? $this->toInputTime($entry->time_out) : '',
                 'note_time_in' => $this->toInputTime($entry?->note_time_in),
                 'note_time_out' => $this->toInputTime($entry?->note_time_out),
+                'note_text' => $entry?->note_text ?? '',
                 'day_status' => $entry?->day_status ?? 'worked',
                 'remarks' => $entry?->reason ?? '',
                 'result' => $record ? [
@@ -523,6 +563,7 @@ class TimesheetController extends Controller
                     'late_minutes' => $record->late_minutes,
                     'undertime_minutes' => $record->undertime_minutes,
                     'ot_minutes' => $record->ot_minutes,
+                    'night_minutes' => $record->night_minutes,
                     'is_incomplete' => $record->is_incomplete,
                 ] : null,
             ];
@@ -548,7 +589,7 @@ class TimesheetController extends Controller
                 'id' => $log->id,
                 'at' => $log->created_at?->format('M j, Y g:i A'),
                 'user' => $log->user?->name ?? 'System',
-                'work_date' => $log->work_date->format('M j'),
+                'work_date' => $log->work_date?->format('M j'),
                 'action' => $log->action,
                 'changes' => $log->changes,
             ])

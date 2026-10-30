@@ -13,7 +13,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class DtrLog extends Model
 {
-    public const DAY_STATUSES = ['worked', 'day_off', 'absent', 'leave'];
+    public const DAY_STATUSES = ['worked', 'day_off', 'absent', 'awol', 'leave'];
 
     protected $fillable = [
         'employee_id',
@@ -24,6 +24,7 @@ class DtrLog extends Model
         'time_out',
         'note_time_in',
         'note_time_out',
+        'note_text',
         'day_status',
         'reason',
         'status',

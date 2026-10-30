@@ -54,6 +54,15 @@ class SiteManningSeeder extends Seeder
         ['code' => 'TAG-014', 'first' => 'Eliezer Michelle', 'last' => 'Galapon', 'position' => 'Yardman', 'shift' => '0700-1600', 'start' => '2026-09-24'],
     ];
 
+    /**
+     * Batangas staff not in the 201 files yet (from their DTR tabs).
+     *
+     * @var list<array<string, string|null>>
+     */
+    protected const NEW_BATANGAS = [
+        ['code' => 'BAT-001', 'first' => 'Joel', 'last' => 'Plata', 'position' => 'Checker', 'shift' => '0600-1500', 'start' => '2026-09-19'],
+    ];
+
     public function run(): void
     {
         $shifts = OptionList::query()->category('shift_schedule')->get()->keyBy('value');
@@ -64,14 +73,19 @@ class SiteManningSeeder extends Seeder
         ];
 
         foreach (self::EXISTING as $code => [$site, $shift, $position]) {
-            Employee::query()->where('employee_code', $code)->update(array_filter([
+            Employee::query()->where('employee_code', (string) $code)->update(array_filter([
                 'work_location' => $site,
                 ...$shiftFields($shift),
                 'position' => $position,
             ], fn ($value) => $value !== null));
         }
 
-        foreach (self::NEW_TAGUIG as $row) {
+        $newStaff = [
+            ...array_map(fn (array $row) => [...$row, 'site' => 'Taguig'], self::NEW_TAGUIG),
+            ...array_map(fn (array $row) => [...$row, 'site' => 'Batangas'], self::NEW_BATANGAS),
+        ];
+
+        foreach ($newStaff as $row) {
             Employee::query()->updateOrCreate(
                 ['employee_code' => $row['code']],
                 [
@@ -79,7 +93,7 @@ class SiteManningSeeder extends Seeder
                     'middle_name' => $row['middle'] ?? null,
                     'last_name' => $row['last'],
                     'position' => $row['position'],
-                    'work_location' => 'Taguig',
+                    'work_location' => $row['site'],
                     'hire_date' => $row['start'] ?? null,
                     'status' => 'active',
                     ...$shiftFields($row['shift']),

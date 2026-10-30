@@ -136,6 +136,36 @@ test('an incomplete day is repaired once the missing time is encoded', function 
         ->and($record->worked_minutes)->toBe(540);
 });
 
+test('an afternoon shift written under PM Arrival is read from the earliest to the latest time', function () {
+    // The paper DTR's 13:00 goes in the PM Arrival column, AM columns blank.
+    DtrLog::query()->create([
+        'employee_id' => $this->employee->id,
+        'work_date' => '2026-01-05',
+        'break_in' => '13:00:00',
+        'time_out' => '22:00:00',
+        'status' => 'approved',
+    ]);
+
+    $record = resolveAttendance($this->employee, '2026-01-05');
+
+    expect($record->is_incomplete)->toBeFalse()
+        ->and($record->time_in)->toBe('13:00:00')
+        ->and($record->time_out)->toBe('22:00:00')
+        ->and($record->worked_minutes)->toBe(540);
+});
+
+test('an arrival written under AM Departure still counts as the arrival', function () {
+    DtrLog::query()->create([
+        'employee_id' => $this->employee->id,
+        'work_date' => '2026-01-05',
+        'break_out' => '08:00:00',
+        'time_out' => '17:00:00',
+        'status' => 'approved',
+    ]);
+
+    expect(resolveAttendance($this->employee, '2026-01-05')->worked_minutes)->toBe(540);
+});
+
 test('a day off, absence or leave produces no payable record', function () {
     fullDay($this->employee, '2026-01-05');
     expect(resolveAttendance($this->employee, '2026-01-05'))->not->toBeNull();

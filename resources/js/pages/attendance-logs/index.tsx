@@ -13,8 +13,9 @@ type LogRow = {
     employee: string;
     employee_code: string | null;
     site: string | null;
-    work_date: string;
-    work_date_label: string;
+    /** Empty for Manning changes, which aren't tied to a day. */
+    work_date: string | null;
+    work_date_label: string | null;
     month: string;
     source: string;
     source_key: string;
@@ -58,6 +59,23 @@ const FIELD_LABELS: Record<string, string> = {
     day_status: 'Day',
     remarks: 'Remarks',
     schedule: 'Schedule',
+    site: 'Site',
+    shift_schedule: 'Schedule time',
+};
+
+// Where "Open" leads for each kind of change.
+const openLink = (log: LogRow): { href: string; data: Record<string, string | number> } => {
+    const site = log.site ?? 'all';
+
+    if (log.source_key === 'manning') {
+        return { href: '/manning', data: { site } };
+    }
+
+    if (log.source_key === 'schedule') {
+        return { href: '/schedules', data: { site, month: log.month } };
+    }
+
+    return { href: '/timesheet', data: { site, employee_id: log.employee_id, month: log.month } };
 };
 
 const ACTION_STYLES: Record<string, { label: string; className: string }> = {
@@ -99,8 +117,8 @@ export default function AttendanceLogsIndex({ logs, summary, filters, users, emp
                             Time Sheet Logs
                         </h1>
                         <p className="mt-1 text-sm text-slate-500">
-                            Every change to time sheets and schedules: who made it, when, from which computer, and the
-                            value before and after. Use a day's <b>history</b> to find who entered a wrong time.
+                            Every change to time sheets, schedules and Manning: who made it, when, from which computer,
+                            and the value before and after. Use a day's <b>history</b> to find who entered a wrong time.
                         </p>
                     </div>
                     <a
@@ -186,7 +204,7 @@ export default function AttendanceLogsIndex({ logs, summary, filters, users, emp
                         <label className="text-xs text-slate-600">
                             <span className="mb-1 block">Where</span>
                             <select className={input} value={filters.source ?? ''} onChange={(e) => visit({ source: e.target.value || null })}>
-                                <option value="">Time Sheet & Schedule</option>
+                                <option value="">Everywhere</option>
                                 {Object.entries(sources).map(([value, label]) => (
                                     <option key={value} value={value}>
                                         {label}
@@ -239,6 +257,7 @@ export default function AttendanceLogsIndex({ logs, summary, filters, users, emp
                                 <th className="px-4 py-3 font-medium">When</th>
                                 <th className="px-4 py-3 font-medium">Changed by</th>
                                 <th className="px-4 py-3 font-medium">Employee</th>
+                                <th className="px-4 py-3 font-medium">Site (Manning)</th>
                                 <th className="px-4 py-3 font-medium">Day changed</th>
                                 <th className="px-4 py-3 font-medium">Where</th>
                                 <th className="px-4 py-3 font-medium">Action</th>
@@ -249,7 +268,7 @@ export default function AttendanceLogsIndex({ logs, summary, filters, users, emp
                         <tbody>
                             {logs.data.length === 0 && (
                                 <tr>
-                                    <td colSpan={8} className="px-4 py-10 text-center text-slate-500">
+                                    <td colSpan={9} className="px-4 py-10 text-center text-slate-500">
                                         No changes match these filters.
                                     </td>
                                 </tr>
@@ -263,12 +282,25 @@ export default function AttendanceLogsIndex({ logs, summary, filters, users, emp
                                     </td>
                                     <td className="px-4 py-3 whitespace-nowrap">
                                         <div className="font-medium text-slate-800">{log.employee}</div>
-                                        <div className="text-xs text-slate-400">
-                                            {log.employee_code}
-                                            {log.site ? ` · ${log.site}` : ''}
-                                        </div>
+                                        <div className="text-xs text-slate-400">{log.employee_code}</div>
                                     </td>
-                                    <td className="px-4 py-3 whitespace-nowrap text-slate-700">{log.work_date_label}</td>
+                                    <td className="px-4 py-3 whitespace-nowrap">
+                                        {log.site ? (
+                                            <button
+                                                type="button"
+                                                title={`Show only ${log.site} changes`}
+                                                onClick={() => visit({ site: log.site })}
+                                                className="rounded-full bg-lime-100 px-2.5 py-0.5 text-xs font-semibold text-lime-800 hover:bg-lime-200"
+                                            >
+                                                {log.site}
+                                            </button>
+                                        ) : (
+                                            <span className="text-xs text-slate-400">No site</span>
+                                        )}
+                                    </td>
+                                    <td className="px-4 py-3 whitespace-nowrap text-slate-700">
+                                        {log.work_date_label ?? <span className="text-slate-400">— (whole schedule)</span>}
+                                    </td>
                                     <td className="px-4 py-3 whitespace-nowrap text-slate-600">{log.source}</td>
                                     <td className="px-4 py-3">
                                         <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${ACTION_STYLES[log.action]?.className}`}>
@@ -290,7 +322,7 @@ export default function AttendanceLogsIndex({ logs, summary, filters, users, emp
                                         </ul>
                                     </td>
                                     <td className="px-4 py-3 whitespace-nowrap text-right">
-                                        {!dayHistory && (
+                                        {!dayHistory && log.work_date && (
                                             <button
                                                 type="button"
                                                 title="Every change ever made to this employee's day"
@@ -302,12 +334,8 @@ export default function AttendanceLogsIndex({ logs, summary, filters, users, emp
                                             </button>
                                         )}
                                         <Link
-                                            href={log.source_key === 'schedule' ? '/schedules' : '/timesheet'}
-                                            data={
-                                                log.source_key === 'schedule'
-                                                    ? { site: log.site ?? 'all', month: log.month }
-                                                    : { site: log.site ?? 'all', employee_id: log.employee_id, month: log.month }
-                                            }
+                                            href={openLink(log).href}
+                                            data={openLink(log).data}
                                             className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs text-slate-600 hover:bg-slate-100"
                                         >
                                             <ExternalLink className="size-3.5" />

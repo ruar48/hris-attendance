@@ -40,6 +40,15 @@ class PayrollSetting extends Model
             // Holiday
             'holiday_pay_multiplier' => '2.00',
 
+            // Night differential: extra pay for each hour worked between
+            // 10 PM and 6 AM, as a fraction of the hourly rate (Labor Code: 10%).
+            'night_diff_rate' => '0.10',
+
+            // Paid leave days per employee per calendar year (Service
+            // Incentive Leave: 5). Leave beyond this is unpaid and counted as
+            // an absence.
+            'paid_leave_days_per_year' => '5',
+
             // Cash advance deduction per payroll run
             'cash_advance_max_deduction' => '1000',
             'cash_advance_auto_deduct' => '1',

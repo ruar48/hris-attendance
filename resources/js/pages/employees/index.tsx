@@ -30,7 +30,7 @@ type EmployeeRow = {
     daily_rate: number;
     sunday_route_rate: number;
     hourly_rate: number;
-    biometric_user_id: string | null;
+    work_location: string | null;
     hire_date: string | null;
     last_working_day: string | null;
     status: string;
@@ -71,7 +71,7 @@ const emptyForm = {
     daily_rate: '0',
     sunday_route_rate: '0',
     hourly_rate: '0',
-    biometric_user_id: '',
+    work_location: '',
     hire_date: new Date().toISOString().slice(0, 10),
     status: 'active',
 };
@@ -137,7 +137,7 @@ export default function EmployeesIndex({
             daily_rate: String(employee.daily_rate),
             sunday_route_rate: String(employee.sunday_route_rate),
             hourly_rate: String(employee.hourly_rate),
-            biometric_user_id: employee.biometric_user_id ?? '',
+            work_location: employee.work_location ?? '',
             hire_date: employee.hire_date ?? '',
             status: employee.status,
         });
@@ -210,7 +210,7 @@ export default function EmployeesIndex({
                         <p className="text-sm text-slate-500">
                             {filters.archived
                                 ? 'Archived employees are excluded from payroll. Restore them to bring them back.'
-                                : 'Each employee is enrolled with a biometric fingerprint ID.'}
+                                : 'Each employee is assigned to a site (Manning) with a regular schedule time.'}
                         </p>
                     </div>
                     <div className="flex w-full flex-col gap-3 sm:flex-row md:w-auto md:items-end">
@@ -225,7 +225,7 @@ export default function EmployeesIndex({
                             <input
                                 value={search}
                                 onChange={(event) => setSearch(event.target.value)}
-                                placeholder="Search name, code, biometric ID"
+                                placeholder="Search name, code, site"
                                 className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pr-3 pl-10 text-sm outline-none focus:border-emerald-400"
                             />
                         </form>
@@ -489,17 +489,15 @@ export default function EmployeesIndex({
                                 />
                             </label>
                             <label className="text-sm">
-                                <span className="mb-1.5 block text-slate-600">Biometric User ID</span>
-                                <input
+                                <span className="mb-1.5 block text-slate-600">Site (Manning)</span>
+                                <OptionSelect
+                                    category="work_location"
+                                    value={form.data.work_location}
+                                    onChange={(value) => form.setData('work_location', value ?? '')}
                                     className={inputClass}
-                                    value={form.data.biometric_user_id}
-                                    onChange={(e) => form.setData('biometric_user_id', e.target.value)}
-                                    placeholder="e.g. BIO-129"
                                 />
-                                {form.errors.biometric_user_id && (
-                                    <span className="mt-1 block text-xs text-rose-600">
-                                        {form.errors.biometric_user_id}
-                                    </span>
+                                {form.errors.work_location && (
+                                    <span className="mt-1 block text-xs text-rose-600">{form.errors.work_location}</span>
                                 )}
                             </label>
                             <label className="text-sm">
@@ -550,7 +548,7 @@ export default function EmployeesIndex({
                                     <th className="px-4 py-3 font-medium">Code</th>
                                     <th className="px-4 py-3 font-medium">Name</th>
                                     <th className="px-4 py-3 font-medium">Position</th>
-                                    <th className="px-4 py-3 font-medium">Biometric ID</th>
+                                    <th className="px-4 py-3 font-medium">Site (Manning)</th>
                                     <th className="px-4 py-3 font-medium">Basic Salary</th>
                                     <th className="px-4 py-3 font-medium">Status</th>
                                     <th className="px-4 py-3 text-right font-medium">Actions</th>
@@ -585,8 +583,14 @@ export default function EmployeesIndex({
                                             )}
                                         </td>
                                         <td className="px-4 py-3 text-slate-600">{employee.position}</td>
-                                        <td className="px-4 py-3 font-mono text-xs text-emerald-700">
-                                            {employee.biometric_user_id ?? 'Not enrolled'}
+                                        <td className="px-4 py-3">
+                                            {employee.work_location ? (
+                                                <span className="rounded-full bg-lime-100 px-2.5 py-0.5 text-xs font-semibold text-lime-800">
+                                                    {employee.work_location}
+                                                </span>
+                                            ) : (
+                                                <span className="text-xs text-slate-400">No site yet</span>
+                                            )}
                                         </td>
                                         <td className="px-4 py-3 text-slate-700">
                                             {formatPeso(employee.basic_salary)}

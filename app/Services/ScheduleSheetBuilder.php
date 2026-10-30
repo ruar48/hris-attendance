@@ -31,7 +31,7 @@ class ScheduleSheetBuilder
         $weekStart = $start->copy()->startOfWeek(Carbon::MONDAY);
         $weekEnd = $end->copy()->endOfWeek(Carbon::SUNDAY);
 
-        $holidays = Holiday::mapForPeriod($weekStart, $weekEnd);
+        $holidays = Holiday::mapForPeriod($weekStart, $weekEnd, $site);
         $shiftTypes = ShiftType::query()->orderBy('time_in')->orderBy('code')->get();
 
         $employees = Employee::query()

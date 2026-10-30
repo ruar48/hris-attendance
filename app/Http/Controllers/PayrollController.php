@@ -131,6 +131,8 @@ class PayrollController extends Controller
                 'holiday_pay' => (float) $payslip->holiday_pay,
                 'sunday_route' => (float) $payslip->sunday_route,
                 'overtime_pay' => (float) $payslip->overtime_pay,
+                'night_diff_pay' => (float) $payslip->night_diff_pay,
+                'unpaid_leave_days' => (int) $payslip->unpaid_leave_days,
                 'thirteenth_month' => (float) $payslip->thirteenth_month,
                 'late_deduction' => (float) $payslip->late_deduction,
                 'undertime_deduction' => (float) $payslip->undertime_deduction,

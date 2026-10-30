@@ -31,6 +31,8 @@ export default function PayrollSettingsPage({ settings }: Props) {
         sunday_route_use_employee_rate: toBool(settings.sunday_route_use_employee_rate),
 
         holiday_pay_multiplier: Number(settings.holiday_pay_multiplier ?? 2),
+        night_diff_rate: Number(settings.night_diff_rate ?? 0.1),
+        paid_leave_days_per_year: Number(settings.paid_leave_days_per_year ?? 5),
 
         cash_advance_max_deduction: Number(settings.cash_advance_max_deduction ?? 1000),
         cash_advance_auto_deduct: toBool(settings.cash_advance_auto_deduct),
@@ -335,6 +337,33 @@ export default function PayrollSettingsPage({ settings }: Props) {
                                 onChange={(e) =>
                                     form.setData('holiday_pay_multiplier', Number(e.target.value))
                                 }
+                            />
+                        </Field>
+                        <Field
+                            label="Night differential rate"
+                            hint="Extra pay per hour worked between 10 PM and 6 AM, as a share of the hourly rate. 0.10 = 10% (Labor Code)."
+                        >
+                            <input
+                                type="number"
+                                step="0.01"
+                                min={0}
+                                max={1}
+                                className={inputClass}
+                                value={form.data.night_diff_rate}
+                                onChange={(e) => form.setData('night_diff_rate', Number(e.target.value))}
+                            />
+                        </Field>
+                        <Field
+                            label="Paid leave days per year"
+                            hint="Sick, vacation and emergency leave share this limit (Service Incentive Leave: 5). Leave beyond it is unpaid and counted as an absence."
+                        >
+                            <input
+                                type="number"
+                                step="1"
+                                min={0}
+                                className={inputClass}
+                                value={form.data.paid_leave_days_per_year}
+                                onChange={(e) => form.setData('paid_leave_days_per_year', Number(e.target.value))}
                             />
                         </Field>
                         <label className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm">

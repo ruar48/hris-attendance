@@ -60,7 +60,7 @@ class EmployeeCompensationSeeder extends Seeder
     {
         foreach (static::employees() as $code => $data) {
             Employee::query()
-                ->where('employee_code', $code)
+                ->where('employee_code', (string) $code)
                 ->update($data);
         }
     }

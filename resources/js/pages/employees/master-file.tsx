@@ -10,7 +10,7 @@ import { GENDER_OPTIONS, MARITAL_STATUS_OPTIONS } from '@/lib/hr-options';
 type MasterFileRow = {
     id: number;
     employee_code: string;
-    biometric_user_id: string | null;
+    work_location: string | null;
     last_name: string;
     first_name: string;
     middle_name: string | null;
@@ -138,7 +138,7 @@ export default function MasterFileIndex({ employees, filters, perPageOptions }: 
                                 <tr>
                                     {[
                                         'Employee ID',
-                                        'Biometrics ID',
+                                        'Site (Manning)',
                                         'Last Name',
                                         'First Name',
                                         'Middle Name, Suffix',
@@ -187,9 +187,11 @@ export default function MasterFileIndex({ employees, filters, perPageOptions }: 
                                             {row.employee_code}
                                         </td>
                                         <td className="border border-slate-300 p-0">
-                                            <TextCell
-                                                value={row.biometric_user_id}
-                                                onCommit={(v) => patch(row, { biometric_user_id: v })}
+                                            <OptionSelect
+                                                category="work_location"
+                                                value={row.work_location}
+                                                onChange={(v) => patch(row, { work_location: v || null })}
+                                                className={inputClass}
                                             />
                                         </td>
                                         <td className="border border-slate-300 p-0">

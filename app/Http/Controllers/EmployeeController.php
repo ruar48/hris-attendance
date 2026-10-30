@@ -34,7 +34,7 @@ class EmployeeController extends Controller
                     $q->where('first_name', 'like', "%{$search}%")
                         ->orWhere('last_name', 'like', "%{$search}%")
                         ->orWhere('employee_code', 'like', "%{$search}%")
-                        ->orWhere('biometric_user_id', 'like', "%{$search}%");
+                        ->orWhere('work_location', 'like', "%{$search}%");
                 });
             })
             ->orderBy('employee_code')
@@ -53,7 +53,7 @@ class EmployeeController extends Controller
                 'daily_rate' => (float) $employee->daily_rate,
                 'sunday_route_rate' => (float) $employee->sunday_route_rate,
                 'hourly_rate' => (float) $employee->hourly_rate,
-                'biometric_user_id' => $employee->biometric_user_id,
+                'work_location' => $employee->work_location,
                 'hire_date' => $employee->hire_date?->toDateString(),
                 'last_working_day' => $employee->last_working_day?->toDateString(),
                 'status' => $employee->status,
@@ -114,7 +114,6 @@ class EmployeeController extends Controller
             'daily_rate' => $data['daily_rate'],
             'sunday_route_rate' => $data['sunday_route_rate'] ?? 0,
             'hourly_rate' => $data['hourly_rate'],
-            'biometric_user_id' => $data['biometric_user_id'] ?? null,
             'hire_date' => $data['hire_date'] ?? null,
             'status' => $data['status'] ?? 'active',
             ...Arr::only($data, Employee::PROFILE_FIELDS),
@@ -139,7 +138,6 @@ class EmployeeController extends Controller
             'daily_rate' => $data['daily_rate'],
             'sunday_route_rate' => $data['sunday_route_rate'] ?? 0,
             'hourly_rate' => $data['hourly_rate'],
-            'biometric_user_id' => $data['biometric_user_id'] ?? null,
             'hire_date' => $data['hire_date'] ?? null,
             'status' => $data['status'] ?? $employee->status,
             ...Arr::only($data, Employee::PROFILE_FIELDS),
@@ -326,7 +324,7 @@ class EmployeeController extends Controller
             ->through(fn (Employee $employee) => [
                 'id' => $employee->id,
                 'employee_code' => $employee->employee_code,
-                'biometric_user_id' => $employee->biometric_user_id,
+                'work_location' => $employee->work_location,
                 'last_name' => $employee->last_name,
                 'first_name' => $employee->first_name,
                 'middle_name' => $employee->middle_name,

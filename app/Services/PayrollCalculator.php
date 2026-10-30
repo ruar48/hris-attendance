@@ -221,6 +221,7 @@ class PayrollCalculator
         $holidayPay = (float) $attendance->sum('holiday_pay');
         $sundayRoute = (float) $attendance->sum('sunday_pay');
         $overtimePay = (float) $attendance->sum('ot_pay');
+        $nightDiffPay = (float) $attendance->sum('night_diff_pay');
         $lateDeduction = (float) $attendance->sum('late_deduction');
         $undertimeDeduction = (float) $attendance->sum('undertime_deduction');
 
@@ -243,7 +244,7 @@ class PayrollCalculator
         $gov = $this->governmentBenefits($employee);
 
         $totalEarnings = round(
-            $basicPay + $holidayPay + $sundayRoute + $overtimePay,
+            $basicPay + $holidayPay + $sundayRoute + $overtimePay + $nightDiffPay,
             2
         );
 
@@ -276,9 +277,11 @@ class PayrollCalculator
             'employee_id' => $employee->id,
             'basic_pay' => $basicPay,
             'absent_days' => $absence['days'],
+            'unpaid_leave_days' => $absence['unpaid_leave'],
             'holiday_pay' => $holidayPay,
             'sunday_route' => $sundayRoute,
             'overtime_pay' => $overtimePay,
+            'night_diff_pay' => $nightDiffPay,
             'thirteenth_month' => 0,
             'late_deduction' => $lateDeduction,
             'undertime_deduction' => $undertimeDeduction,
@@ -359,7 +362,7 @@ class PayrollCalculator
      * Sundays/holidays.
      *
      * @param  Collection<int, AttendanceRecord>  $attendance
-     * @return array{days: int, amount: float}
+     * @return array{days: int, amount: float, unpaid_leave: int}
      */
     protected function absenceDeduction(
         Employee $employee,
@@ -368,7 +371,7 @@ class PayrollCalculator
         Collection $attendance
     ): array {
         if ($basicPay <= 0) {
-            return ['days' => 0, 'amount' => 0.0];
+            return ['days' => 0, 'amount' => 0.0, 'unpaid_leave' => 0];
         }
 
         $summary = AttendancePeriodSummary::build(
@@ -381,13 +384,14 @@ class PayrollCalculator
         $absent = $summary['absent'];
 
         if ($scheduled === 0 || $absent === 0) {
-            return ['days' => 0, 'amount' => 0.0];
+            return ['days' => 0, 'amount' => 0.0, 'unpaid_leave' => $summary['unpaidLeave']];
         }
 
-        // Never deduct more than the basic pay itself.
+        // Never deduct more than the basic pay itself. Leave taken past the
+        // yearly paid-leave limit is already counted among the absent days.
         $amount = min($basicPay, round($basicPay / $scheduled * $absent, 2));
 
-        return ['days' => $absent, 'amount' => $amount];
+        return ['days' => $absent, 'amount' => $amount, 'unpaid_leave' => $summary['unpaidLeave']];
     }
 
     /**

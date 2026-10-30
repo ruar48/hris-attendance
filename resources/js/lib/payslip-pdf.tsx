@@ -17,6 +17,7 @@ export type PayslipPdfData = {
     holiday_pay: number;
     sunday_route: number;
     overtime_pay: number;
+    night_diff_pay: number;
     thirteenth_month: number;
     late_deduction: number;
     undertime_deduction: number;
@@ -284,6 +285,12 @@ function Amounts({ payslip }: { payslip: PayslipPdfData }) {
                     <View style={styles.row}>
                         <Text style={styles.rowLabel}>Overtime Pay</Text>
                         <Text style={styles.rowAmount}>{peso(payslip.overtime_pay)}</Text>
+                    </View>
+                )}
+                {payslip.night_diff_pay > 0 && (
+                    <View style={styles.row}>
+                        <Text style={styles.rowLabel}>Night Differential</Text>
+                        <Text style={styles.rowAmount}>{peso(payslip.night_diff_pay)}</Text>
                     </View>
                 )}
                 {payslip.thirteenth_month > 0 && (

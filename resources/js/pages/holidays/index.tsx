@@ -4,6 +4,8 @@ import { CalendarDays, Trash2 } from 'lucide-react';
 type Holiday = {
     id: number;
     name: string;
+    /** Empty: nationwide. Otherwise the one site it's local to. */
+    site: string | null;
     is_recurring: boolean;
     month: number | null;
     day: number | null;
@@ -16,6 +18,7 @@ type Holiday = {
 type Props = {
     holidays: Holiday[];
     default_multiplier: number;
+    sites: string[];
 };
 
 const months = [
@@ -33,9 +36,10 @@ const months = [
     { value: 12, label: 'December' },
 ];
 
-export default function HolidaysIndex({ holidays, default_multiplier }: Props) {
+export default function HolidaysIndex({ holidays, default_multiplier, sites }: Props) {
     const form = useForm({
         name: '',
+        site: '',
         is_recurring: true,
         month: 5,
         day: 1,
@@ -66,6 +70,10 @@ export default function HolidaysIndex({ holidays, default_multiplier }: Props) {
                         <li>
                             Formula: <strong>daily rate × (multiplier − 1)</strong>
                         </li>
+                        <li>
+                            A <strong>local holiday</strong> (e.g. a town fiesta) applies only to the site you choose;
+                            other sites work it as an ordinary day.
+                        </li>
                     </ol>
                 </div>
 
@@ -94,6 +102,25 @@ export default function HolidaysIndex({ holidays, default_multiplier }: Props) {
                                 placeholder="Labor Day"
                                 required
                             />
+                        </label>
+
+                        <label className="text-sm md:col-span-2">
+                            <span className="mb-1.5 block text-slate-600">Applies to</span>
+                            <select
+                                className="w-full rounded-xl border border-slate-200 px-3 py-2.5"
+                                value={form.data.site}
+                                onChange={(e) => form.setData('site', e.target.value)}
+                            >
+                                <option value="">All sites (nationwide holiday)</option>
+                                {sites.map((site) => (
+                                    <option key={site} value={site}>
+                                        {site} only (local holiday)
+                                    </option>
+                                ))}
+                            </select>
+                            {form.errors.date && (
+                                <span className="mt-1 block text-xs text-rose-600">{form.errors.date}</span>
+                            )}
                         </label>
 
                         <label className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm md:col-span-2">
@@ -228,6 +255,7 @@ export default function HolidaysIndex({ holidays, default_multiplier }: Props) {
                             <tr>
                                 <th className="px-4 py-3 font-medium">When</th>
                                 <th className="px-4 py-3 font-medium">Name</th>
+                                <th className="px-4 py-3 font-medium">Applies to</th>
                                 <th className="px-4 py-3 font-medium">Type</th>
                                 <th className="px-4 py-3 font-medium">Multiplier</th>
                                 <th className="px-4 py-3 font-medium">Actions</th>
@@ -236,7 +264,7 @@ export default function HolidaysIndex({ holidays, default_multiplier }: Props) {
                         <tbody>
                             {holidays.length === 0 && (
                                 <tr>
-                                    <td colSpan={5} className="px-4 py-8 text-center text-slate-500">
+                                    <td colSpan={6} className="px-4 py-8 text-center text-slate-500">
                                         No holidays yet. Add one so holiday pay can be computed.
                                     </td>
                                 </tr>
@@ -254,6 +282,15 @@ export default function HolidaysIndex({ holidays, default_multiplier }: Props) {
                                         )}
                                     </td>
                                     <td className="px-4 py-3 text-slate-700">{holiday.name}</td>
+                                    <td className="px-4 py-3">
+                                        {holiday.site ? (
+                                            <span className="rounded-full bg-lime-100 px-2.5 py-0.5 text-xs font-semibold text-lime-800">
+                                                {holiday.site} only
+                                            </span>
+                                        ) : (
+                                            <span className="text-xs text-slate-500">All sites</span>
+                                        )}
+                                    </td>
                                     <td className="px-4 py-3 capitalize text-slate-600">
                                         {holiday.type}
                                     </td>

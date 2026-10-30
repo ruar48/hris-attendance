@@ -294,6 +294,9 @@
                             @if ((float) $payslip->overtime_pay > 0)
                                 <tr><td class="label">Overtime Pay</td><td class="amount">{{ $peso($payslip->overtime_pay) }}</td></tr>
                             @endif
+                            @if ((float) $payslip->night_diff_pay > 0)
+                                <tr><td class="label">Night Differential</td><td class="amount">{{ $peso($payslip->night_diff_pay) }}</td></tr>
+                            @endif
                             @if ((float) $payslip->thirteenth_month > 0)
                                 <tr><td class="label">13th Month Pay</td><td class="amount">{{ $peso($payslip->thirteenth_month) }}</td></tr>
                             @endif
@@ -403,6 +406,9 @@
                             @endif
                             @if ((float) $payslip->overtime_pay > 0)
                                 <tr><td class="label">Overtime Pay</td><td class="amount">{{ $peso($payslip->overtime_pay) }}</td></tr>
+                            @endif
+                            @if ((float) $payslip->night_diff_pay > 0)
+                                <tr><td class="label">Night Differential</td><td class="amount">{{ $peso($payslip->night_diff_pay) }}</td></tr>
                             @endif
                             @if ((float) $payslip->thirteenth_month > 0)
                                 <tr><td class="label">13th Month Pay</td><td class="amount">{{ $peso($payslip->thirteenth_month) }}</td></tr>

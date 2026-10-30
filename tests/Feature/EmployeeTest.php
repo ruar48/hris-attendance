@@ -42,6 +42,18 @@ function makePeriod(int $month): PayrollPeriod
     ]);
 }
 
+test('the roster shows each employee\'s site and can be searched by it', function () {
+    makeEmployees(2);
+    Employee::query()->where('employee_code', 'EMP-0001')->update(['work_location' => 'Batangas']);
+
+    $this->get(route('employees.index', ['search' => 'Batangas']))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->has('employees.data', 1)
+            ->where('employees.data.0.work_location', 'Batangas')
+            ->missing('employees.data.0.biometric_user_id'));
+});
+
 test('the employee list is paginated at 15 per page by default', function () {
     makeEmployees(20);
 

@@ -35,6 +35,8 @@ class PayrollSettingsController extends Controller
             'sunday_route_use_employee_rate' => ['required', 'boolean'],
 
             'holiday_pay_multiplier' => ['required', 'numeric', 'min:1', 'max:5'],
+            'night_diff_rate' => ['required', 'numeric', 'min:0', 'max:1'],
+            'paid_leave_days_per_year' => ['required', 'integer', 'min:0', 'max:60'],
 
             'cash_advance_max_deduction' => ['required', 'numeric', 'min:0'],
             'cash_advance_auto_deduct' => ['required', 'boolean'],

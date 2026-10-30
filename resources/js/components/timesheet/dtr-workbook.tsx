@@ -9,13 +9,14 @@ import { ScheduleSheet } from '@/components/schedule/schedule-sheet';
 import type { ScheduleData } from '@/components/schedule/schedule-sheet';
 import { useOptionList } from '@/hooks/use-option-list';
 
-type DayStatus = 'worked' | 'day_off' | 'absent' | 'leave';
+type DayStatus = 'worked' | 'day_off' | 'absent' | 'awol' | 'leave';
 
 type DayResult = {
     worked_minutes: number;
     late_minutes: number;
     undertime_minutes: number;
     ot_minutes: number;
+    night_minutes: number;
     is_incomplete: boolean;
 };
 
@@ -32,6 +33,7 @@ type Day = {
     time_out: string;
     note_time_in: string;
     note_time_out: string;
+    note_text: string;
     day_status: DayStatus;
     remarks: string;
     result: DayResult | null;
@@ -100,12 +102,13 @@ type TimeField = (typeof TIME_FIELDS)[number];
 const NOTE_FIELDS = ['note_time_in', 'note_time_out'] as const;
 type NoteField = (typeof NOTE_FIELDS)[number];
 
-type Row = Pick<Day, 'date' | TimeField | NoteField | 'day_status' | 'remarks'>;
+type Row = Pick<Day, 'date' | TimeField | NoteField | 'note_text' | 'day_status' | 'remarks'>;
 
 const STATUS_LABELS: Record<DayStatus, string> = {
     worked: 'Worked',
     day_off: 'Day Off',
     absent: 'Absent',
+    awol: 'AWOL',
     leave: 'Leave',
 };
 
@@ -116,6 +119,7 @@ const FIELD_LABELS: Record<string, string> = {
     time_out: 'PM departure',
     note_time_in: 'outside note arrival',
     note_time_out: 'outside note departure',
+    note_text: 'outside note',
     day_status: 'status',
     remarks: 'remarks',
 };
@@ -129,12 +133,13 @@ const STATUS_WORDS: Record<string, DayStatus> = {
     do: 'day_off',
     absent: 'absent',
     abs: 'absent',
+    awol: 'awol',
     leave: 'leave',
 };
 
 // Grid columns used for keyboard movement: remarks margin, the four times,
-// then the two outside notes.
-const NAV_COLUMNS = 7;
+// then the two outside note times and the outside note text.
+const NAV_COLUMNS = 8;
 
 // Sheet palette taken from the workbook.
 const PAPER = 'bg-[#f6e3ad]';
@@ -151,6 +156,7 @@ const toRow = (day: Day): Row => ({
     time_out: day.time_out,
     note_time_in: day.note_time_in,
     note_time_out: day.note_time_out,
+    note_text: day.note_text,
     day_status: day.day_status,
     remarks: day.remarks,
 });
@@ -158,7 +164,8 @@ const toRow = (day: Day): Row => ({
 const sameRow = (a: Row, b: Row) =>
     [...TIME_FIELDS, ...NOTE_FIELDS].every((field) => a[field] === b[field]) &&
     a.day_status === b.day_status &&
-    a.remarks.trim() === b.remarks.trim();
+    a.remarks.trim() === b.remarks.trim() &&
+    a.note_text.trim() === b.note_text.trim();
 
 /**
  * Accepts the shorthand people type into a spreadsheet — "645", "6:45",
@@ -197,6 +204,14 @@ function normalizeTime(raw: string): string | null {
 
     return `${hours}:${String(minutes).padStart(2, '0')}`;
 }
+
+/** Whether a departure is on the next day: an earlier clock time than the arrival. */
+const isNextDay = (arrival: string, departure: string): boolean => {
+    const a = normalizeTime(arrival);
+    const d = normalizeTime(departure);
+
+    return Boolean(a && d) && (d as string).padStart(5, '0') < (a as string).padStart(5, '0');
+};
 
 /** "6:45" → "06:45", the format the server validates. */
 const toPayloadTime = (value: string) => {
@@ -727,6 +742,7 @@ function DtrForm({ employee, employeeIndex, month, days, officialHours, inCharge
                 time_out: worked ? toPayloadTime(row.time_out) : null,
                 note_time_in: toPayloadTime(row.note_time_in),
                 note_time_out: toPayloadTime(row.note_time_out),
+                note_text: row.note_text.trim() || null,
                 day_status: row.day_status,
                 remarks: row.remarks.trim() || null,
             };
@@ -823,11 +839,12 @@ function DtrForm({ employee, employeeIndex, month, days, officialHours, inCharge
                     <col className="w-[88px]" />
                     <col className="w-[96px]" />
                     <col className="w-[96px]" />
-                    {/* Outside notes: a gap, arrival, departure, and the copy-in button. */}
+                    {/* Outside notes: a gap, arrival, departure, the copy-in button, and free text. */}
                     <col className="w-4" />
                     <col className="w-[76px]" />
                     <col className="w-[76px]" />
                     <col className="w-7" />
+                    <col className="w-40" />
                     <col className="w-28" />
                 </colgroup>
 
@@ -927,6 +944,9 @@ function DtrForm({ employee, employeeIndex, month, days, officialHours, inCharge
                             PM
                         </td>
                         <td />
+                        <td className="px-1 text-[11px] font-medium text-slate-500" rowSpan={2} title="Text written beside the form, e.g. STRAIGHT DUTY, PLS. IR">
+                            Outside note
+                        </td>
                         <td className="dtr-no-print px-2 text-[11px] font-medium text-slate-500">Mark day</td>
                     </tr>
                     <tr className="text-[11px]">
@@ -990,9 +1010,19 @@ function DtrForm({ employee, employeeIndex, month, days, officialHours, inCharge
                                     TIME_FIELDS.map((field, f) => {
                                         const bad = normalizeTime(row[field]) === null && !statusWord(row[field]);
                                         const flagged = bad || (error && field === 'time_out');
+                                        // A departure earlier than the arrival is the next morning.
+                                        const nextDay = field === 'time_out' && isNextDay(row.time_in || row.break_in, row.time_out);
 
                                         return (
-                                            <td key={field} className={`${INK_BORDER} ${highlight} p-0`}>
+                                            <td key={field} className={`${INK_BORDER} ${highlight} relative p-0`}>
+                                                {nextDay && (
+                                                    <span
+                                                        className="pointer-events-none absolute top-0 right-0.5 text-[8px] font-bold text-indigo-700"
+                                                        title="Left the next day (overnight)"
+                                                    >
+                                                        +1d
+                                                    </span>
+                                                )}
                                                 <input
                                                     data-cell={`${month}:${i}-${f + 1}`}
                                                     aria-label={`${FIELD_LABELS[field]} on ${monthLabel(month, 'short')} ${day.day}`}
@@ -1012,7 +1042,7 @@ function DtrForm({ employee, employeeIndex, month, days, officialHours, inCharge
                                         className={`${INK_BORDER} ${PAPER} text-center tracking-wide ${
                                             row.day_status === 'day_off'
                                                 ? 'font-bold text-[#1e8c3a]'
-                                                : row.day_status === 'absent'
+                                                : row.day_status === 'absent' || row.day_status === 'awol'
                                                   ? 'font-semibold text-red-700'
                                                   : 'font-semibold text-blue-800'
                                         }`}
@@ -1030,6 +1060,14 @@ function DtrForm({ employee, employeeIndex, month, days, officialHours, inCharge
                                     <>
                                         <td className={`${INK_BORDER} ${highlight} px-1.5`}>
                                             {formatHours(result?.ot_minutes ?? 0)}
+                                            {(result?.night_minutes ?? 0) > 0 && (
+                                                <div
+                                                    className="dtr-no-print text-[9px] leading-none font-semibold text-indigo-700"
+                                                    title="Night differential: hours worked between 10 PM and 6 AM"
+                                                >
+                                                    ND {formatHours(result?.night_minutes ?? 0)}
+                                                </div>
+                                            )}
                                         </td>
                                         <td className={`${INK_BORDER} ${highlight} px-1.5`}>{formatHours(lates)}</td>
                                     </>
@@ -1073,6 +1111,21 @@ function DtrForm({ employee, employeeIndex, month, days, officialHours, inCharge
                                             ←
                                         </button>
                                     )}
+                                </td>
+                                <td className="p-0">
+                                    <input
+                                        data-cell={`${month}:${i}-7`}
+                                        aria-label={`Outside note on ${monthLabel(month, 'short')} ${day.day}`}
+                                        className={`h-[22px] w-full px-1 text-[11px] font-semibold uppercase outline-none focus:bg-white focus:outline-2 focus:outline-[#1a73e8] ${
+                                            row.note_text.trim() ? 'text-[#1f1a10]' : 'bg-transparent'
+                                        }`}
+                                        value={row.note_text}
+                                        maxLength={255}
+                                        title={row.note_text}
+                                        onFocus={selectAll}
+                                        onChange={(event) => update(i, { note_text: event.target.value })}
+                                        onKeyDown={(event) => onKeyDown(event, i, 7)}
+                                    />
                                 </td>
 
                                 <td className="dtr-no-print p-0 pl-1">

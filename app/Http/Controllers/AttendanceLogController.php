@@ -77,11 +77,12 @@ class AttendanceLogController extends Controller
         return response()->streamDownload(function () use ($filters) {
             $out = fopen('php://output', 'w');
             fputcsv($out, ['Changed at', 'Changed by', 'IP address', 'Employee code', 'Employee', 'Site', 'Work date', 'Where', 'Action', 'Changes']);
+            $labels = ['site' => 'site', 'shift_schedule' => 'schedule time'];
 
             $this->query($filters)
                 ->with(['user:id,name', 'employee:id,employee_code,first_name,last_name,work_location'])
                 ->latest('id')
-                ->chunk(500, function ($logs) use ($out) {
+                ->chunk(500, function ($logs) use ($out, $labels) {
                     foreach ($logs as $log) {
                         $row = $this->row($log);
                         fputcsv($out, [
@@ -95,7 +96,7 @@ class AttendanceLogController extends Controller
                             $row['source'],
                             $row['action'],
                             collect($row['changes'])
-                                ->map(fn ($pair, $field) => "{$field}: ".($pair[0] ?? '—').' → '.($pair[1] ?? '—'))
+                                ->map(fn ($pair, $field) => ($labels[$field] ?? $field).': '.($pair[0] ?? '—').' → '.($pair[1] ?? '—'))
                                 ->implode('; '),
                         ]);
                     }
@@ -143,7 +144,8 @@ class AttendanceLogController extends Controller
             ->when($filters['work_date'], fn ($q, $date) => $q->whereDate('work_date', $date))
             ->when($filters['user_id'], fn ($q, $id) => $q->where('user_id', $id))
             ->when($filters['employee_id'], fn ($q, $id) => $q->where('employee_id', $id))
-            ->when($filters['site'], fn ($q, $site) => $q->whereHas('employee', fn ($e) => $e->withTrashed()->where('work_location', $site)))
+            // The site the change was made for, even if the person moved since.
+            ->when($filters['site'], fn ($q, $site) => $q->where('site', $site))
             ->when($filters['source'], fn ($q, $source) => $q->where('source', $source))
             ->when($filters['action'], fn ($q, $action) => $q->where('action', $action));
     }
@@ -164,10 +166,11 @@ class AttendanceLogController extends Controller
             'employee_id' => $log->employee_id,
             'employee' => $employee ? "{$employee->last_name}, {$employee->first_name}" : '—',
             'employee_code' => $employee?->employee_code,
-            'site' => $employee?->work_location,
-            'work_date' => $log->work_date->toDateString(),
-            'work_date_label' => $log->work_date->format('D, M j, Y'),
-            'month' => $log->work_date->format('Y-m'),
+            'site' => $log->site,
+            // Manning changes aren't tied to a day.
+            'work_date' => $log->work_date?->toDateString(),
+            'work_date_label' => $log->work_date?->format('D, M j, Y'),
+            'month' => ($log->work_date ?? $log->created_at)?->format('Y-m'),
             'source' => AttendanceAuditLog::SOURCES[$log->source] ?? $log->source,
             'source_key' => $log->source,
             'action' => $log->action,
