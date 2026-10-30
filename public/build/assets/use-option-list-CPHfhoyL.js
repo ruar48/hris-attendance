@@ -1,0 +1,1 @@
+import{n as e}from"./jsx-runtime-DIBGU2nq.js";import{c as t}from"./dist-BhyCDbcz.js";var n=e();function r(e){let r=(0,n.c)(3),{optionLists:i}=t().props,a;return r[0]!==e||r[1]!==i?(a=i?.[e]??[],r[0]=e,r[1]=i,r[2]=a):a=r[2],a}export{r as t};

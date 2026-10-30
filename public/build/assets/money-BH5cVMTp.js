@@ -1,0 +1,1 @@
+function e(e){let t=Number(e??0);return new Intl.NumberFormat(`en-PH`,{style:`currency`,currency:`PHP`,minimumFractionDigits:2}).format(t)}export{e as t};

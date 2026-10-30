@@ -1,0 +1,1 @@
+var e=new Set([`awol`,`resigned`,`end_of_contract`]);function t(t){return!!t&&e.has(t)}function n(e,t){return e?`bg-red-50 text-red-950 hover:bg-red-100`:t%2==0?`bg-white`:`bg-slate-50`}export{t as n,n as t};
