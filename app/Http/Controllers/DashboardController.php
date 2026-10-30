@@ -71,9 +71,9 @@ class DashboardController extends Controller
             ] : null,
             'features' => [
                 [
-                    'key' => 'biometric_dtr',
-                    'title' => 'Biometric Sync to Payroll',
-                    'description' => 'Fingerprint is primary. DTR is fallback only when devices fail.',
+                    'key' => 'timesheet',
+                    'title' => 'Encoded Time Sheet to Payroll',
+                    'description' => 'HR encodes daily time records; every change is logged.',
                     'status' => 'active',
                 ],
                 [
@@ -97,7 +97,7 @@ class DashboardController extends Controller
                 [
                     'key' => 'overtime',
                     'title' => "Automatic Add of OT's",
-                    'description' => 'Overtime hours computed from biometric out punches.',
+                    'description' => 'Overtime hours computed from encoded time-out.',
                     'status' => 'active',
                 ],
                 [

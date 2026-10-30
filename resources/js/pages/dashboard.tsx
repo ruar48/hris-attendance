@@ -7,10 +7,10 @@ import {
     Calculator,
     CalendarDays,
     CheckCircle2,
+    ClipboardList,
     Clock3,
     CreditCard,
     FileText,
-    Fingerprint,
     Gift,
     MapPin,
     MoreVertical,
@@ -89,8 +89,8 @@ const featureMeta: Record<
     string,
     { icon: LucideIcon; iconClass: string; cardClass: string }
 > = {
-    biometric_dtr: {
-        icon: Fingerprint,
+    timesheet: {
+        icon: ClipboardList,
         iconClass: 'bg-blue-100 text-blue-600',
         cardClass: 'hover:border-blue-200 hover:bg-blue-50/40',
     },
@@ -282,11 +282,11 @@ export default function Dashboard({
                                     Run Payroll
                                 </button>
                                 <QuickAction
-                                    label="Sync Biometrics"
-                                    hint="Fingerprint primary source"
-                                    icon={Fingerprint}
+                                    label="Encode Time Sheet"
+                                    hint="Daily time records"
+                                    icon={ClipboardList}
                                     tone="blue"
-                                    onClick={() => router.visit('/biometrics')}
+                                    onClick={() => router.visit('/timesheet')}
                                 />
                                 <QuickAction
                                     label="Generate Payslips"

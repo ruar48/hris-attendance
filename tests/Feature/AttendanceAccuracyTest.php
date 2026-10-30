@@ -1,8 +1,6 @@
 <?php
 
 use App\Models\AttendanceRecord;
-use App\Models\BiometricDevice;
-use App\Models\BiometricLog;
 use App\Models\DtrLog;
 use App\Models\Employee;
 use App\Models\Holiday;
@@ -34,21 +32,32 @@ beforeEach(function () {
         'sunday_route_rate' => 0,
         'status' => 'active',
     ]);
-
-    $this->device = BiometricDevice::query()->create([
-        'name' => 'Gate',
-        'serial_number' => 'ZK-TEST',
-        'status' => 'online',
-    ]);
 });
 
-function punch(Employee $employee, string $at, string $type, BiometricDevice $device): void
+/**
+ * Encode one time on the employee's time sheet, the way HR types it in.
+ */
+function punch(Employee $employee, string $at, string $type): void
 {
-    BiometricLog::query()->create([
+    $at = Carbon::parse($at);
+    $field = $type === 'in' ? 'time_in' : 'time_out';
+
+    $log = DtrLog::query()
+        ->where('employee_id', $employee->id)
+        ->whereDate('work_date', $at->toDateString())
+        ->first();
+
+    if ($log) {
+        $log->update([$field => $at->format('H:i:s')]);
+
+        return;
+    }
+
+    DtrLog::query()->create([
         'employee_id' => $employee->id,
-        'biometric_device_id' => $device->id,
-        'punched_at' => $at,
-        'punch_type' => $type,
+        'work_date' => $at->toDateString(),
+        $field => $at->format('H:i:s'),
+        'status' => 'approved',
     ]);
 }
 
@@ -57,14 +66,14 @@ function resolveAttendance(Employee $employee, string $date, ?Holiday $holiday =
     return app(AttendanceResolver::class)->resolveDay($employee, Carbon::parse($date), $holiday);
 }
 
-function fullDay(Employee $employee, string $date, BiometricDevice $device): void
+function fullDay(Employee $employee, string $date): void
 {
-    punch($employee, "{$date} 08:00:00", 'in', $device);
-    punch($employee, "{$date} 17:00:00", 'out', $device);
+    punch($employee, "{$date} 08:00:00", 'in');
+    punch($employee, "{$date} 17:00:00", 'out');
 }
 
 test('a normal day on time produces no deductions and no overtime', function () {
-    fullDay($this->employee, '2026-01-05', $this->device);
+    fullDay($this->employee, '2026-01-05');
 
     $record = resolveAttendance($this->employee, '2026-01-05');
 
@@ -76,8 +85,8 @@ test('a normal day on time produces no deductions and no overtime', function () 
 });
 
 test('lateness beyond grace is charged at the hourly rate', function () {
-    punch($this->employee, '2026-01-05 08:30:00', 'in', $this->device);
-    punch($this->employee, '2026-01-05 17:00:00', 'out', $this->device);
+    punch($this->employee, '2026-01-05 08:30:00', 'in');
+    punch($this->employee, '2026-01-05 17:00:00', 'out');
 
     $record = resolveAttendance($this->employee, '2026-01-05');
 
@@ -86,8 +95,8 @@ test('lateness beyond grace is charged at the hourly rate', function () {
 });
 
 test('overtime past the minimum pays at the multiplier', function () {
-    punch($this->employee, '2026-01-05 08:00:00', 'in', $this->device);
-    punch($this->employee, '2026-01-05 19:00:00', 'out', $this->device);
+    punch($this->employee, '2026-01-05 08:00:00', 'in');
+    punch($this->employee, '2026-01-05 19:00:00', 'out');
 
     $record = resolveAttendance($this->employee, '2026-01-05');
 
@@ -95,8 +104,8 @@ test('overtime past the minimum pays at the multiplier', function () {
         ->and((float) $record->ot_pay)->toBe(187.50); // 2h at 75 * 1.25
 });
 
-test('a lone out-punch is flagged incomplete instead of charging a phantom day late', function () {
-    punch($this->employee, '2026-01-05 17:00:00', 'out', $this->device);
+test('a lone time out is flagged incomplete instead of charging a phantom day late', function () {
+    punch($this->employee, '2026-01-05 17:00:00', 'out');
 
     $record = resolveAttendance($this->employee, '2026-01-05');
 
@@ -105,8 +114,8 @@ test('a lone out-punch is flagged incomplete instead of charging a phantom day l
         ->and((float) $record->late_deduction)->toBe(0.0);
 });
 
-test('a missing out-punch is flagged incomplete rather than silently paid', function () {
-    punch($this->employee, '2026-01-05 08:00:00', 'in', $this->device);
+test('a missing time out is flagged incomplete rather than silently paid', function () {
+    punch($this->employee, '2026-01-05 08:00:00', 'in');
 
     $record = resolveAttendance($this->employee, '2026-01-05');
 
@@ -115,18 +124,11 @@ test('a missing out-punch is flagged incomplete rather than silently paid', func
         ->and($record->worked_minutes)->toBe(0);
 });
 
-test('an incomplete day is repaired by the DTR fallback', function () {
-    punch($this->employee, '2026-01-05 08:00:00', 'in', $this->device);
+test('an incomplete day is repaired once the missing time is encoded', function () {
+    punch($this->employee, '2026-01-05 08:00:00', 'in');
     expect(resolveAttendance($this->employee, '2026-01-05')->is_incomplete)->toBeTrue();
 
-    DtrLog::query()->create([
-        'employee_id' => $this->employee->id,
-        'work_date' => '2026-01-05',
-        'time_in' => '08:00:00',
-        'time_out' => '17:00:00',
-        'reason' => 'Device problem',
-        'status' => 'approved',
-    ]);
+    punch($this->employee, '2026-01-05 17:00:00', 'out');
 
     $record = resolveAttendance($this->employee, '2026-01-05');
 
@@ -134,12 +136,26 @@ test('an incomplete day is repaired by the DTR fallback', function () {
         ->and($record->worked_minutes)->toBe(540);
 });
 
+test('a day off, absence or leave produces no payable record', function () {
+    fullDay($this->employee, '2026-01-05');
+    expect(resolveAttendance($this->employee, '2026-01-05'))->not->toBeNull();
+
+    DtrLog::query()->where('employee_id', $this->employee->id)->update([
+        'day_status' => 'absent',
+        'time_in' => null,
+        'time_out' => null,
+    ]);
+
+    expect(resolveAttendance($this->employee, '2026-01-05'))->toBeNull()
+        ->and(AttendanceRecord::query()->count())->toBe(0);
+});
+
 test('the OT rate setting no longer reprices late deductions', function () {
     PayrollSetting::setValue('ot_use_employee_hourly', '0');
     PayrollSetting::setValue('ot_fixed_hourly_rate', '300');
 
-    punch($this->employee, '2026-01-05 09:00:00', 'in', $this->device);
-    punch($this->employee, '2026-01-05 19:00:00', 'out', $this->device);
+    punch($this->employee, '2026-01-05 09:00:00', 'in');
+    punch($this->employee, '2026-01-05 19:00:00', 'out');
 
     $record = resolveAttendance($this->employee, '2026-01-05');
 
@@ -152,8 +168,8 @@ test('the OT rate setting no longer reprices late deductions', function () {
 test('undertime minutes stored match the minutes actually charged', function () {
     PayrollSetting::setValue('undertime_deduction_unit', 'hour');
 
-    punch($this->employee, '2026-01-05 08:00:00', 'in', $this->device);
-    punch($this->employee, '2026-01-05 16:54:00', 'out', $this->device);
+    punch($this->employee, '2026-01-05 08:00:00', 'in');
+    punch($this->employee, '2026-01-05 16:54:00', 'out');
 
     $record = resolveAttendance($this->employee, '2026-01-05');
 
@@ -173,8 +189,8 @@ test('holiday premium is prorated by the hours actually worked', function () {
     ]);
 
     // Worked 1h30 of a 9h shift.
-    punch($this->employee, '2026-01-05 08:00:00', 'in', $this->device);
-    punch($this->employee, '2026-01-05 09:30:00', 'out', $this->device);
+    punch($this->employee, '2026-01-05 08:00:00', 'in');
+    punch($this->employee, '2026-01-05 09:30:00', 'out');
 
     $record = resolveAttendance($this->employee, '2026-01-05', $holiday);
 
@@ -189,7 +205,7 @@ test('a full day on a holiday still pays the whole premium', function () {
         'pay_multiplier' => 2.00,
     ]);
 
-    fullDay($this->employee, '2026-01-05', $this->device);
+    fullDay($this->employee, '2026-01-05');
 
     expect((float) resolveAttendance($this->employee, '2026-01-05', $holiday)->holiday_pay)
         ->toBe(600.00);
@@ -205,7 +221,7 @@ test('a holiday on a Sunday pays the better premium, not both', function () {
         'pay_multiplier' => 2.00,
     ]);
 
-    fullDay($this->employee, '2026-01-11', $this->device);
+    fullDay($this->employee, '2026-01-11');
 
     $record = resolveAttendance($this->employee, '2026-01-11', $holiday);
 
@@ -215,7 +231,7 @@ test('a holiday on a Sunday pays the better premium, not both', function () {
 });
 
 test('an employee with no route rate is not paid the default Sunday amount', function () {
-    fullDay($this->employee, '2026-01-11', $this->device); // Sunday, route rate 0
+    fullDay($this->employee, '2026-01-11'); // Sunday, route rate 0
 
     expect((float) resolveAttendance($this->employee, '2026-01-11')->sunday_pay)->toBe(0.0);
 });
@@ -223,14 +239,14 @@ test('an employee with no route rate is not paid the default Sunday amount', fun
 test('a route driver is paid their own Sunday rate', function () {
     $this->employee->update(['sunday_route_rate' => 800]);
 
-    fullDay($this->employee, '2026-01-11', $this->device);
+    fullDay($this->employee, '2026-01-11');
 
     expect((float) resolveAttendance($this->employee, '2026-01-11')->sunday_pay)->toBe(800.00);
 });
 
 test('Saturday work is recorded by the period sync', function () {
-    punch($this->employee, '2026-01-10 08:00:00', 'in', $this->device); // Saturday
-    punch($this->employee, '2026-01-10 19:00:00', 'out', $this->device);
+    punch($this->employee, '2026-01-10 08:00:00', 'in'); // Saturday
+    punch($this->employee, '2026-01-10 19:00:00', 'out');
 
     app(AttendanceResolver::class)->syncPeriod(
         Carbon::parse('2026-01-05'),
@@ -251,7 +267,7 @@ test('a holiday with a zero multiplier falls back to the configured default', fu
         'pay_multiplier' => 0,
     ]);
 
-    fullDay($this->employee, '2026-01-05', $this->device);
+    fullDay($this->employee, '2026-01-05');
 
     // Default 2.00x => 600 premium, rather than silently paying nothing.
     expect((float) resolveAttendance($this->employee, '2026-01-05', $holiday)->holiday_pay)

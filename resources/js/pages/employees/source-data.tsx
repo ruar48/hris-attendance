@@ -23,6 +23,8 @@ const CATEGORIES: CategoryConfig[] = [
     { key: 'department', title: 'Departments', hasCode: false, hasTime: false },
     { key: 'job_level', title: 'Company Job Levels / Ranks', hasCode: true, hasTime: false },
     { key: 'shift_schedule', title: 'Company Shift & Work Schedules', hasCode: true, hasTime: true },
+    // Time in/out here are the site's warehouse operation hours.
+    { key: 'work_location', title: 'Work Locations / Sites', hasCode: false, hasTime: true },
 ];
 
 export default function SourceDataIndex({ optionLists }: Props) {

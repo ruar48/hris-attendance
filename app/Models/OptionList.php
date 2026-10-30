@@ -23,6 +23,8 @@ class OptionList extends Model
         'department',
         'job_level',
         'shift_schedule',
+        // Sites; time_in/time_out hold the warehouse operation hours.
+        'work_location',
     ];
 
     public function scopeCategory($query, string $category)

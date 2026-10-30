@@ -95,7 +95,7 @@ function payrollFor(PayrollPeriod $period): Payslip
 function attendance(Employee $employee, string $date, array $attributes = []): AttendanceRecord
 {
     $values = array_merge([
-        'source' => 'biometric',
+        'source' => 'dtr',
         'is_incomplete' => false,
         'worked_minutes' => 540,
     ], $attributes);

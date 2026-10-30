@@ -67,7 +67,7 @@ export default function PayrollSettingsPage({ settings }: Props) {
                         icon={Clock3}
                         title="Work Schedule, Late & Undertime"
                         tone="blue"
-                        description="Used when biometric/DTR punches are synced into attendance."
+                        description="Used when encoded time sheet entries are resolved into attendance."
                     >
                         <Field label="Shift Start" hint="Official time-in">
                             <input
@@ -218,7 +218,7 @@ export default function PayrollSettingsPage({ settings }: Props) {
                         </Field>
                         <HelpBox>
                             Formula: <code>OT pay = OT hours × hourly rate × multiplier</code>. OT
-                            hours come from biometric/DTR time-out after shift end, only if they meet
+                            hours come from the encoded time-out after shift end, only if they meet
                             the minimum minutes.
                         </HelpBox>
                     </Section>

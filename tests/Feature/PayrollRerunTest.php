@@ -1,7 +1,7 @@
 <?php
 
-use App\Models\AttendanceRecord;
 use App\Models\CashAdvance;
+use App\Models\DtrLog;
 use App\Models\Employee;
 use App\Models\PayrollPeriod;
 use App\Models\PayrollSetting;
@@ -56,12 +56,12 @@ test('running the same period twice does not double-deduct a cash advance', func
             continue;
         }
 
-        AttendanceRecord::query()->create([
+        DtrLog::query()->create([
             'employee_id' => $this->employee->id,
             'work_date' => $day->toDateString(),
-            'source' => 'biometric',
-            'is_incomplete' => false,
-            'worked_minutes' => 540,
+            'time_in' => '08:00:00',
+            'time_out' => '17:00:00',
+            'status' => 'approved',
         ]);
     }
 

@@ -3,7 +3,6 @@
 namespace App\Services;
 
 use App\Models\AttendanceRecord;
-use App\Models\BiometricLog;
 use App\Models\DtrLog;
 use App\Models\Employee;
 use App\Models\Holiday;
@@ -16,8 +15,7 @@ use Illuminate\Support\Collection;
 class AttendanceResolver
 {
     /**
-     * Resolve attendance for a date range.
-     * Biometric fingerprint logs are primary; approved DTR is used only as fallback.
+     * Resolve attendance for a date range from the encoded time sheet.
      *
      * @return Collection<int, AttendanceRecord>
      */
@@ -49,15 +47,19 @@ class AttendanceResolver
     public function resolveDay(Employee $employee, CarbonInterface $date, ?Holiday $holiday = null): ?AttendanceRecord
     {
         $date = Carbon::parse($date);
-        $resolved = $this->fromBiometric($employee, $date);
+        $resolved = $this->fromTimesheet($employee, $date);
 
-        // The DTR fallback also covers a half-captured biometric day, which is
-        // exactly the case HR files a correction for.
-        if ($resolved === null || $resolved['time_in'] === null || $resolved['time_out'] === null) {
-            $resolved = $this->fromDtrFallback($employee, $date) ?? $resolved;
-        }
-
+        // A blank day, day off, absence or leave has nothing payable. Drop any
+        // record left from an earlier encoding so a cleared cell stops paying.
+        // Records from the retired biometric sync have no time sheet entry
+        // behind them and are kept as history.
         if ($resolved === null) {
+            AttendanceRecord::query()
+                ->where('employee_id', $employee->id)
+                ->whereDate('work_date', $date->toDateString())
+                ->where('source', 'dtr')
+                ->delete();
+
             return null;
         }
 
@@ -72,10 +74,10 @@ class AttendanceResolver
         $isSunday = $date->isSunday();
         $isHoliday = $holiday !== null;
 
-        // A day is only payable when BOTH punches are present. A lone punch
+        // A day is only payable when BOTH times are encoded. A lone time
         // cannot tell us when the person arrived or left, so rather than guess
         // (and charge a phantom full-day lateness, or let a half day go free)
-        // the day is flagged for HR to correct through the DTR fallback.
+        // the day is flagged for HR to complete on the time sheet.
         if ($resolved['time_in'] === null || $resolved['time_out'] === null) {
             return $this->persist($employee, $date, [
                 'time_in' => $resolved['time_in'],
@@ -257,34 +259,7 @@ class AttendanceResolver
     /**
      * @return array{time_in: string|null, time_out: string|null, source: string}|null
      */
-    protected function fromBiometric(Employee $employee, Carbon $date): ?array
-    {
-        $logs = BiometricLog::query()
-            ->where('employee_id', $employee->id)
-            ->whereDate('punched_at', $date->toDateString())
-            ->orderBy('punched_at')
-            ->get();
-
-        if ($logs->isEmpty()) {
-            return null;
-        }
-
-        // Only a real "in" punch may set time_in. Falling back to the first log
-        // of the day turns a lone evening out-punch into a 9-hour lateness.
-        $timeIn = $logs->firstWhere('punch_type', 'in');
-        $timeOut = $logs->where('punch_type', 'out')->last();
-
-        return [
-            'time_in' => $timeIn?->punched_at->format('H:i:s'),
-            'time_out' => $timeOut?->punched_at->format('H:i:s'),
-            'source' => 'biometric',
-        ];
-    }
-
-    /**
-     * @return array{time_in: string|null, time_out: string|null, source: string}|null
-     */
-    protected function fromDtrFallback(Employee $employee, Carbon $date): ?array
+    protected function fromTimesheet(Employee $employee, Carbon $date): ?array
     {
         $dtr = DtrLog::query()
             ->where('employee_id', $employee->id)
@@ -292,7 +267,7 @@ class AttendanceResolver
             ->where('status', 'approved')
             ->first();
 
-        if (! $dtr || ! $dtr->time_in) {
+        if (! $dtr || $dtr->day_status !== 'worked' || ($dtr->time_in === null && $dtr->time_out === null)) {
             return null;
         }
 

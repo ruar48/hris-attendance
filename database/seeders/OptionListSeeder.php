@@ -63,6 +63,19 @@ class OptionListSeeder extends Seeder
                 ['value' => 'day', 'label' => 'Day', 'time_in' => '6:00 AM', 'time_out' => '2:00 PM'],
                 ['value' => 'mid', 'label' => 'Mid', 'time_in' => '2:00 PM', 'time_out' => '10:00 PM'],
                 ['value' => 'night', 'label' => 'Night', 'time_in' => '10:00 PM', 'time_out' => '6:00 AM'],
+                // Schedule times used on the sites' Manning sheets.
+                ['value' => '0600-1500', 'label' => '6:00 am - 3:00 pm', 'time_in' => '6:00 AM', 'time_out' => '3:00 PM'],
+                ['value' => '0700-1600', 'label' => '7:00 am - 4:00 pm', 'time_in' => '7:00 AM', 'time_out' => '4:00 PM'],
+                ['value' => '1100-2000', 'label' => '11:00 am - 8:00 pm', 'time_in' => '11:00 AM', 'time_out' => '8:00 PM'],
+                ['value' => '1200-2100', 'label' => '12:00 pm - 9:00 pm', 'time_in' => '12:00 PM', 'time_out' => '9:00 PM'],
+                ['value' => '1300-2200', 'label' => '1:00 pm - 10:00 pm', 'time_in' => '1:00 PM', 'time_out' => '10:00 PM'],
+                ['value' => '1800-0600', 'label' => '6:00 pm - 6:00 am', 'time_in' => '6:00 PM', 'time_out' => '6:00 AM'],
+            ],
+            // Sites, each with its own Manning sheet. Times are the warehouse operation hours.
+            'work_location' => [
+                ['value' => 'Tayabas', 'label' => 'Tayabas', 'time_in' => null, 'time_out' => null],
+                ['value' => 'Taguig', 'label' => 'Taguig', 'time_in' => '6:00 AM', 'time_out' => '6:00 AM'],
+                ['value' => 'Batangas', 'label' => 'Batangas', 'time_in' => '6:00 AM', 'time_out' => '10:00 PM'],
             ],
         ];
     }

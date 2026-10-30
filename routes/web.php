@@ -1,10 +1,8 @@
 <?php
 
 use App\Http\Controllers\ApplicantController;
-use App\Http\Controllers\BiometricController;
 use App\Http\Controllers\CashAdvanceController;
 use App\Http\Controllers\DashboardController;
-use App\Http\Controllers\DtrController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\GovernmentBenefitsController;
 use App\Http\Controllers\HolidayController;
@@ -15,6 +13,7 @@ use App\Http\Controllers\AttendanceSummaryController;
 use App\Http\Controllers\PayslipPdfController;
 use App\Http\Controllers\ScheduleController;
 use App\Http\Controllers\ShiftTypeController;
+use App\Http\Controllers\TimesheetController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -51,11 +50,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::put('applicants/{applicant}', [ApplicantController::class, 'update'])->name('applicants.update');
     Route::delete('applicants/{applicant}', [ApplicantController::class, 'destroy'])->name('applicants.destroy');
 
-    Route::get('biometrics', [BiometricController::class, 'index'])->name('biometrics.index');
-    Route::post('biometrics/import', [BiometricController::class, 'import'])->name('biometrics.import');
-
-    Route::get('dtr', [DtrController::class, 'index'])->name('dtr.index');
-    Route::post('dtr', [DtrController::class, 'store'])->name('dtr.store');
+    Route::get('timesheet', [TimesheetController::class, 'index'])->name('timesheet.index');
+    Route::get('timesheet/workbook', [TimesheetController::class, 'workbook'])->name('timesheet.workbook');
+    Route::put('timesheet/manning/{employee}', [TimesheetController::class, 'updateManning'])
+        ->name('timesheet.manning.update');
+    Route::put('timesheet', [TimesheetController::class, 'update'])->name('timesheet.update');
 
     Route::get('cash-advances', [CashAdvanceController::class, 'index'])->name('cash-advances.index');
     Route::post('cash-advances', [CashAdvanceController::class, 'store'])->name('cash-advances.store');

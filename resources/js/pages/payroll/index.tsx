@@ -73,7 +73,7 @@ export default function PayrollIndex({ filters, years, summary, periods }: Props
                     <div>
                         <h1 className="text-2xl font-semibold text-slate-900">Payroll</h1>
                         <p className="mt-1 text-sm text-slate-500">
-                            Kinsenas cutoffs for {filters.year}. Biometric attendance syncs first,
+                            Kinsenas cutoffs for {filters.year}. Encoded time sheets are resolved first,
                             then earnings and deductions are applied automatically.
                         </p>
                     </div>

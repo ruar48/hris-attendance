@@ -2,7 +2,6 @@
 
 namespace Database\Seeders;
 
-use App\Models\BiometricDevice;
 use App\Models\CashAdvance;
 use App\Models\Employee;
 use App\Models\PayrollSetting;
@@ -81,7 +80,7 @@ class ClientDemoSeeder extends Seeder
                 'hourly_rate' => 70,
                 'biometric_user_id' => 'BIO-003',
                 'hire_date' => '2022-08-01',
-                'demo_note' => 'DTR correction (May 10) when biometric failed',
+                'demo_note' => 'Time sheet correction (May 10)',
             ],
             [
                 'employee_code' => 'EMP-0004',
@@ -244,26 +243,6 @@ class ClientDemoSeeder extends Seeder
                 'name' => 'Ana Garcia',
                 'password' => Hash::make('password'),
                 'email_verified_at' => now(),
-            ]
-        );
-
-        BiometricDevice::query()->updateOrCreate(
-            ['serial_number' => 'ZK-FP-001'],
-            [
-                'name' => 'Main Gate Fingerprint',
-                'location' => 'Lobby Entrance',
-                'status' => 'online',
-                'last_synced_at' => now(),
-            ]
-        );
-
-        BiometricDevice::query()->updateOrCreate(
-            ['serial_number' => 'ZK-FP-002'],
-            [
-                'name' => 'Warehouse Fingerprint',
-                'location' => 'Warehouse Exit',
-                'status' => 'online',
-                'last_synced_at' => now()->subMinutes(45),
             ]
         );
 

@@ -21,7 +21,8 @@ export type OptionListCategory =
     | 'position'
     | 'department'
     | 'job_level'
-    | 'shift_schedule';
+    | 'shift_schedule'
+    | 'work_location';
 
 declare module '@inertiajs/core' {
     export interface InertiaConfig {

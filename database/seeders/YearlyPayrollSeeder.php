@@ -2,8 +2,6 @@
 
 namespace Database\Seeders;
 
-use App\Models\BiometricDevice;
-use App\Models\BiometricLog;
 use App\Models\DtrLog;
 use App\Models\Employee;
 use App\Models\Holiday;
@@ -34,7 +32,6 @@ class YearlyPayrollSeeder extends Seeder
         PayrollSetting::setValue('auto_13th_month', '1');
         PayrollSetting::setValue('payroll_frequency', 'kinsenas');
 
-        $device = BiometricDevice::query()->where('serial_number', 'ZK-FP-001')->first();
         $employees = Employee::query()
             ->whereIn('employee_code', ClientDemoSeeder::employeeCodes())
             ->orderBy('employee_code')
@@ -70,7 +67,6 @@ class YearlyPayrollSeeder extends Seeder
 
                     $this->seedPeriodAttendance(
                         $employees,
-                        $device,
                         $start,
                         $end,
                         $month,
@@ -130,7 +126,6 @@ class YearlyPayrollSeeder extends Seeder
      */
     protected function seedPeriodAttendance(
         Collection $employees,
-        ?BiometricDevice $device,
         Carbon $start,
         Carbon $end,
         int $month,
@@ -153,17 +148,14 @@ class YearlyPayrollSeeder extends Seeder
 
                 $rows[] = [
                     'employee_id' => $employee->id,
-                    'biometric_device_id' => $device?->id,
-                    'punched_at' => $day->copy()->setTime($inHour, $inMin),
-                    'punch_type' => 'in',
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ];
-                $rows[] = [
-                    'employee_id' => $employee->id,
-                    'biometric_device_id' => $device?->id,
-                    'punched_at' => $day->copy()->setTime($outHour, $outMin),
-                    'punch_type' => 'out',
+                    'work_date' => $day->toDateString(),
+                    'time_in' => sprintf('%02d:%02d:00', $inHour, $inMin),
+                    'time_out' => sprintf('%02d:%02d:00', $outHour, $outMin),
+                    'day_status' => 'worked',
+                    'reason' => null,
+                    'status' => 'approved',
+                    'approved_by' => $adminId,
+                    'encoded_by' => $adminId,
                     'created_at' => $now,
                     'updated_at' => $now,
                 ];
@@ -171,29 +163,32 @@ class YearlyPayrollSeeder extends Seeder
         }
 
         foreach (array_chunk($rows, 500) as $chunk) {
-            BiometricLog::query()->insert($chunk);
+            DtrLog::query()->upsert(
+                $chunk,
+                ['employee_id', 'work_date'],
+                ['time_in', 'time_out', 'day_status', 'reason', 'status', 'approved_by', 'encoded_by', 'updated_at']
+            );
         }
 
         if ($month === 5 && $half === 1) {
             $pedro = $employees->firstWhere('employee_code', 'EMP-0003');
             if ($pedro) {
-                BiometricLog::query()
-                    ->where('employee_id', $pedro->id)
-                    ->whereDate('punched_at', "{$year}-05-10")
-                    ->delete();
-
-                DtrLog::query()->updateOrCreate(
-                    [
+                DtrLog::query()->upsert(
+                    [[
                         'employee_id' => $pedro->id,
                         'work_date' => "{$year}-05-10",
-                    ],
-                    [
                         'time_in' => '08:05:00',
                         'time_out' => '17:10:00',
-                        'reason' => 'Fingerprint scanner offline at warehouse',
+                        'day_status' => 'worked',
+                        'reason' => 'Corrected from paper DTR',
                         'status' => 'approved',
                         'approved_by' => $adminId,
-                    ]
+                        'encoded_by' => $adminId,
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ]],
+                    ['employee_id', 'work_date'],
+                    ['time_in', 'time_out', 'reason', 'updated_at']
                 );
             }
         }

@@ -55,7 +55,7 @@ function markPresent(Employee $employee, PayrollPeriod $period): void
         AttendanceRecord::query()->create([
             'employee_id' => $employee->id,
             'work_date' => $day->toDateString(),
-            'source' => 'biometric',
+            'source' => 'dtr',
             'is_incomplete' => false,
             'worked_minutes' => 540,
         ]);

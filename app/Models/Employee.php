@@ -121,11 +121,6 @@ class Employee extends Model
         return $this->belongsTo(User::class);
     }
 
-    public function biometricLogs(): HasMany
-    {
-        return $this->hasMany(BiometricLog::class);
-    }
-
     public function dtrLogs(): HasMany
     {
         return $this->hasMany(DtrLog::class);

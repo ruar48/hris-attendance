@@ -22,7 +22,7 @@ const highlights = [
     {
         icon: CalendarClock,
         title: 'Attendance & DTR',
-        description: 'Biometric sync and daily time records in one place.',
+        description: 'Encoded daily time records with a full change log.',
     },
     {
         icon: Wallet,

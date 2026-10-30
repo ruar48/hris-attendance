@@ -6,7 +6,6 @@ import {
     CalendarDays,
     ClipboardList,
     FileBarChart,
-    Fingerprint,
     LayoutGrid,
     Settings,
     SlidersHorizontal,
@@ -71,14 +70,8 @@ const mainNavItems = [
 
 const attendanceNavItems = [
     {
-        title: 'Biometrics',
-        href: '/biometrics',
-        icon: Fingerprint,
-        tone: 'bg-indigo-100 text-indigo-600',
-    },
-    {
-        title: 'DTR Fallback',
-        href: '/dtr',
+        title: 'Time Sheet',
+        href: '/timesheet',
         icon: ClipboardList,
         tone: 'bg-amber-100 text-amber-600',
     },
