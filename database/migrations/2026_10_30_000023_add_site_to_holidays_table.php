@@ -13,12 +13,21 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('holidays', function (Blueprint $table) {
-            $table->string('site')->nullable()->after('name');
-        });
+        // Each step checks first: on MySQL an earlier migration already
+        // dropped the old unique index on `date` (only SQLite kept it).
+        if (! Schema::hasColumn('holidays', 'site')) {
+            Schema::table('holidays', function (Blueprint $table) {
+                $table->string('site')->nullable()->after('name');
+            });
+        }
+
+        if (Schema::hasIndex('holidays', ['date'], 'unique')) {
+            Schema::table('holidays', function (Blueprint $table) {
+                $table->dropUnique(['date']);
+            });
+        }
 
         Schema::table('holidays', function (Blueprint $table) {
-            $table->dropUnique(['date']);
             $table->unique(['date', 'site']);
             $table->index('site');
         });
@@ -29,7 +38,6 @@ return new class extends Migration
         Schema::table('holidays', function (Blueprint $table) {
             $table->dropIndex(['site']);
             $table->dropUnique(['date', 'site']);
-            $table->unique('date');
         });
 
         Schema::table('holidays', function (Blueprint $table) {

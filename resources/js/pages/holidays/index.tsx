@@ -130,6 +130,7 @@ export default function HolidaysIndex({ holidays, default_multiplier, sites }: P
                                 checked={form.data.is_recurring}
                                 onChange={(e) => {
                                     form.setData('is_recurring', e.target.checked);
+
                                     if (e.target.checked) {
                                         form.setData('type', 'regular');
                                         form.setData('pay_multiplier', 2);

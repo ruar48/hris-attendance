@@ -30,6 +30,7 @@ export default function PayrollShow({ run, payslips }: Props) {
 
     async function handleDownloadAll() {
         setBusy('all');
+
         try {
             const { downloadPayslipsPdf, allPayslipsFilename } = await import('@/lib/payslip-pdf');
             await downloadPayslipsPdf(payslips, meta, allPayslipsFilename(run.period));
@@ -40,6 +41,7 @@ export default function PayrollShow({ run, payslips }: Props) {
 
     async function handleDownloadOne(payslip: Payslip) {
         setBusy(payslip.id);
+
         try {
             const { downloadPayslipsPdf, payslipFilename } = await import('@/lib/payslip-pdf');
             await downloadPayslipsPdf(

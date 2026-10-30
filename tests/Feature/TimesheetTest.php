@@ -254,8 +254,14 @@ test('clearing a day removes the entry and logs the deletion', function () {
         ->and(AttendanceAuditLog::query()->latest('id')->first()->action)->toBe('deleted');
 });
 
-test('a time out earlier than time in is rejected', function () {
-    saveTimesheet([sheetRow('2026-01-05', '17:00', '08:00')])
+test('a time out earlier than time in is an overnight stay, not an error', function () {
+    saveTimesheet([sheetRow('2026-01-05', '22:00', '06:00')])->assertSessionHasNoErrors();
+
+    expect(AttendanceRecord::query()->sole()->worked_minutes)->toBe(480);
+});
+
+test('the same time in and out is rejected', function () {
+    saveTimesheet([sheetRow('2026-01-05', '08:00', '08:00')])
         ->assertSessionHasErrors('rows.0.time_out');
 
     expect(DtrLog::query()->count())->toBe(0)
