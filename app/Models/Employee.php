@@ -21,6 +21,27 @@ class Employee extends Model
 {
     use SoftDeletes;
 
+    protected static function booted(): void
+    {
+        // Every site an employee works at belongs on the Work Locations list,
+        // however it got there (workbook import, a form, a typed value), so
+        // the site pickers on Manning, Schedules and the Time Sheet show it.
+        static::saved(function (self $employee) {
+            $site = trim((string) $employee->work_location);
+
+            if ($site === '' || OptionList::query()->category('work_location')->where('value', $site)->exists()) {
+                return;
+            }
+
+            OptionList::query()->create([
+                'category' => 'work_location',
+                'value' => $site,
+                'label' => $site,
+                'sort_order' => (int) OptionList::query()->category('work_location')->max('sort_order') + 1,
+            ]);
+        });
+    }
+
     protected $fillable = [
         'employee_code',
         'first_name',

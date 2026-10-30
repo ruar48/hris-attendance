@@ -50,6 +50,7 @@ class EmployeeController extends Controller
                 'position' => $employee->position,
                 'department' => $employee->department,
                 'basic_salary' => (float) $employee->basic_salary,
+                'salary_type' => $employee->salary_type,
                 'daily_rate' => (float) $employee->daily_rate,
                 'sunday_route_rate' => (float) $employee->sunday_route_rate,
                 'hourly_rate' => (float) $employee->hourly_rate,

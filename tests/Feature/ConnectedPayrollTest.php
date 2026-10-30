@@ -81,6 +81,22 @@ test('what is encoded on the time sheet is what the payslip pays', function () {
         ->and($payslip->absent_days)->toBe(7);
 });
 
+test('a daily-rated worker is paid per day worked, like the site payroll sheets', function () {
+    $this->employee->update(['salary_type' => 'daily', 'basic_salary' => 0]);
+
+    // Seven days worked, Sunday Jun 7 included; Jun 12 (regular holiday) not worked.
+    $days = ['2026-06-01', '2026-06-02', '2026-06-03', '2026-06-04', '2026-06-05', '2026-06-06', '2026-06-07'];
+    encode(array_map(fn ($date) => ['date' => $date, 'time_in' => '08:00', 'time_out' => '17:00'], $days));
+
+    $this->post(route('payroll.run'), ['payroll_period_id' => $this->period->id]);
+
+    $payslip = Payslip::query()->where('employee_id', $this->employee->id)->sole();
+
+    expect((float) $payslip->basic_pay)->toBe(4800.0)       // 600 × (7 worked + 1 unworked regular holiday)
+        ->and((float) $payslip->absence_deduction)->toBe(0.0) // a day not worked is simply not paid
+        ->and((float) $payslip->sss)->toBeGreaterThan(0.0);   // contributions on 600 × 26
+});
+
 test('adding a holiday updates the days already encoded on it', function () {
     encode([['date' => '2026-06-19', 'time_in' => '08:00', 'time_out' => '17:00']]);
     expect((float) AttendanceRecord::query()->sole()->holiday_pay)->toBe(0.0);

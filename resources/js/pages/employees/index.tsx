@@ -27,6 +27,7 @@ type EmployeeRow = {
     position: string | null;
     department: string | null;
     basic_salary: number;
+    salary_type?: string | null;
     daily_rate: number;
     sunday_route_rate: number;
     hourly_rate: number;
@@ -593,7 +594,9 @@ export default function EmployeesIndex({
                                             )}
                                         </td>
                                         <td className="px-4 py-3 text-slate-700">
-                                            {formatPeso(employee.basic_salary)}
+                                            {employee.salary_type === 'daily' && employee.daily_rate > 0
+                                                ? `${formatPeso(employee.daily_rate)} / day`
+                                                : formatPeso(employee.basic_salary)}
                                         </td>
                                         <td className="px-4 py-3">
                                             <span

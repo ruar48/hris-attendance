@@ -9,6 +9,8 @@ use Carbon\Carbon;
 use Database\Seeders\OptionListSeeder;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use PhpOffice\PhpSpreadsheet\Cell\Cell;
+use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Shared\Date as ExcelDate;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
@@ -267,6 +269,9 @@ class EmployeeWorkbookImportService
             'employee_code' => [['employee', 'id']],
             'employee_name' => [['employee', 'name']],
             'position' => [['position']],
+            'division' => [['division']],
+            'department' => [['department']],
+            'job_level' => [['job', 'level'], ['rank']],
             'hire_date' => [['date', 'hired'], ['hire', 'date']],
             'regularization_date' => [['regularization']],
             'separation_date' => [['separation']],
@@ -290,6 +295,9 @@ class EmployeeWorkbookImportService
 
             $attributes = array_filter([
                 'position' => $this->optionValue('position', $this->cellText($sheet, $columns['position'] ?? null, $row)),
+                'division' => $this->cellText($sheet, $columns['division'] ?? null, $row),
+                'department' => $this->optionValue('department', $this->cellText($sheet, $columns['department'] ?? null, $row)),
+                'job_level' => $this->optionValue('job_level', $this->cellText($sheet, $columns['job_level'] ?? null, $row)),
                 'hire_date' => $this->cellDate($sheet, $columns['hire_date'] ?? null, $row),
                 'regularization_date' => $this->cellDate($sheet, $columns['regularization_date'] ?? null, $row),
                 'separation_date' => $this->cellDate($sheet, $columns['separation_date'] ?? null, $row),
@@ -532,12 +540,25 @@ class EmployeeWorkbookImportService
             $timeInCol = $category === 'shift_schedule' ? $this->findColumnNear($sheet, $headerRow, $headerCol, ['time', 'in']) : null;
             $timeOutCol = $category === 'shift_schedule' ? $this->findColumnNear($sheet, $headerRow, $headerCol, ['time', 'out']) : null;
 
+            // The client's sheet puts "Time In / Time Out Schedule" on the row
+            // under the "Company Shift & Work Schedules" title.
+            if ($category === 'shift_schedule' && $timeInCol === null) {
+                $timeInCol = $this->findColumnNear($sheet, $headerRow + 1, $headerCol, ['time', 'in']);
+                $timeOutCol = $this->findColumnNear($sheet, $headerRow + 1, $headerCol, ['time', 'out']);
+            }
+
             $sortOrder = 0;
 
             for ($row = $headerRow + 1; $row <= $highestRow; $row++) {
                 $label = $this->cellText($sheet, $headerCol, $row);
 
                 if ($label === null) {
+                    continue;
+                }
+
+                // The "Shift | Time In Schedule | Time Out Schedule" sub-heading
+                // row under the section title is not a shift.
+                if ($timeInCol && str_contains($this->normalize($this->rawCellText($sheet, $timeInCol, $row)), 'time')) {
                     continue;
                 }
 
@@ -550,8 +571,8 @@ class EmployeeWorkbookImportService
                     array_filter([
                         'label' => $label,
                         'sort_order' => $sortOrder,
-                        'time_in' => $timeInCol ? $this->cellText($sheet, $timeInCol, $row) : null,
-                        'time_out' => $timeOutCol ? $this->cellText($sheet, $timeOutCol, $row) : null,
+                        'time_in' => $timeInCol ? $this->shiftTime($sheet, $timeInCol, $row) : null,
+                        'time_out' => $timeOutCol ? $this->shiftTime($sheet, $timeOutCol, $row) : null,
                     ], fn ($v) => $v !== null)
                 );
 
@@ -766,7 +787,7 @@ class EmployeeWorkbookImportService
 
     protected function columnCount(Worksheet $sheet): int
     {
-        return \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($sheet->getHighestDataColumn());
+        return Coordinate::columnIndexFromString($sheet->getHighestDataColumn());
     }
 
     protected function normalize(?string $text): string
@@ -799,7 +820,7 @@ class EmployeeWorkbookImportService
      * Falls back to the raw stored value when the formula engine can't
      * resolve it (unsupported function, broken cross-sheet reference, …).
      */
-    protected function resolvedCellValue(\PhpOffice\PhpSpreadsheet\Cell\Cell $cell): mixed
+    protected function resolvedCellValue(Cell $cell): mixed
     {
         if (! $cell->isFormula()) {
             return $cell->getValue();
@@ -920,7 +941,9 @@ class EmployeeWorkbookImportService
         $cell = $sheet->getCell([$col, $row]);
         $raw = $this->resolvedCellValue($cell);
 
-        if ($raw === null || $raw === '') {
+        // A time column left empty in the workbook often holds a formula
+        // that returns 0, which would otherwise read as "12:00 AM".
+        if ($raw === null || $raw === '' || (is_numeric($raw) && (float) $raw === 0.0)) {
             return null;
         }
 
@@ -933,6 +956,17 @@ class EmployeeWorkbookImportService
         }
 
         return trim((string) $raw) ?: null;
+    }
+
+    /**
+     * A Source Data shift time ("6:00 AM"), or null for a placeholder such
+     * as "--" (Flexible has no fixed hours).
+     */
+    protected function shiftTime(Worksheet $sheet, int $col, int $row): ?string
+    {
+        $time = $this->cellTimeText($sheet, $col, $row);
+
+        return $time !== null && preg_match('/\d/', $time) ? $time : null;
     }
 
     protected function cellDate(Worksheet $sheet, ?int $col, int $row): ?string

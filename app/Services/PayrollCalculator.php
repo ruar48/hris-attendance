@@ -6,11 +6,13 @@ use App\Exceptions\PayrollAlreadyProcessed;
 use App\Models\AttendanceRecord;
 use App\Models\CashAdvance;
 use App\Models\Employee;
+use App\Models\Holiday;
 use App\Models\PayrollPeriod;
 use App\Models\PayrollRun;
 use App\Models\PayrollSetting;
 use App\Models\Payslip;
 use App\Models\SystemNotification;
+use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -217,7 +219,6 @@ class PayrollCalculator
             ->whereBetween('work_date', [$period->start_date, $period->end_date])
             ->get();
 
-        $basicPay = $this->periodBasicPay($employee, $period);
         $holidayPay = (float) $attendance->sum('holiday_pay');
         $sundayRoute = (float) $attendance->sum('sunday_pay');
         $overtimePay = (float) $attendance->sum('ot_pay');
@@ -225,7 +226,16 @@ class PayrollCalculator
         $lateDeduction = (float) $attendance->sum('late_deduction');
         $undertimeDeduction = (float) $attendance->sum('undertime_deduction');
 
-        $absence = $this->absenceDeduction($employee, $period, $basicPay, $attendance);
+        if ($this->isDailyPaid($employee)) {
+            // Paid per day: a day not worked is simply not paid, so there is
+            // no separate absence deduction.
+            $daily = $this->dailyBasicPay($employee, $period, $attendance);
+            $basicPay = $daily['amount'];
+            $absence = ['days' => $daily['absent'], 'amount' => 0.0, 'unpaid_leave' => $daily['unpaid_leave']];
+        } else {
+            $basicPay = $this->periodBasicPay($employee, $period);
+            $absence = $this->absenceDeduction($employee, $period, $basicPay, $attendance);
+        }
 
         // Time-based deductions can never take more than the basic left after
         // absences — you cannot lose more time than you were paid for.
@@ -333,6 +343,51 @@ class PayrollCalculator
      *
      * Someone who worked 10 days of a 15-day period earns 10/15 of the basic.
      */
+    /**
+     * Daily-rated staff (salary type "Daily") are paid per day, like the
+     * site payroll sheets: daily rate × days paid in the cutoff.
+     */
+    protected function isDailyPaid(Employee $employee): bool
+    {
+        return $employee->salary_type === 'daily' && (float) $employee->daily_rate > 0;
+    }
+
+    /**
+     * Basic pay of a daily-rated employee for a cutoff: daily rate × (days
+     * worked, any day of the week + paid leave days + regular holidays not
+     * worked, which the law pays at 100%). Special holidays not worked are
+     * unpaid ("no work, no pay"). A worked holiday is one day here plus its
+     * premium on the holiday pay line.
+     *
+     * @param  Collection<int, AttendanceRecord>  $attendance
+     * @return array{amount: float, days: int, absent: int, unpaid_leave: int}
+     */
+    protected function dailyBasicPay(Employee $employee, PayrollPeriod $period, Collection $attendance): array
+    {
+        $summary = AttendancePeriodSummary::build($employee, $period->start_date, $period->end_date, $attendance);
+
+        $workedDates = $attendance
+            ->where('is_incomplete', false)
+            ->map(fn (AttendanceRecord $record) => $record->work_date->toDateString())
+            ->unique();
+
+        $unworkedRegularHolidays = Holiday::mapForPeriod($period->start_date, $period->end_date, $employee->work_location)
+            ->filter(fn (Holiday $holiday, string $date) => $holiday->type === 'regular'
+                && ! $workedDates->contains($date)
+                && ! Carbon::parse($date)->isSunday()
+                && ($employee->last_working_day === null || Carbon::parse($date)->lte($employee->last_working_day)))
+            ->count();
+
+        $days = $workedDates->count() + $summary['leave'] + $unworkedRegularHolidays;
+
+        return [
+            'amount' => round((float) $employee->daily_rate * $days, 2),
+            'days' => $days,
+            'absent' => $summary['absent'],
+            'unpaid_leave' => $summary['unpaidLeave'],
+        ];
+    }
+
     protected function periodBasicPay(Employee $employee, PayrollPeriod $period): float
     {
         $basic = ((float) $employee->basic_salary) / 2;
@@ -505,7 +560,11 @@ class PayrollCalculator
      */
     protected function governmentBenefits(Employee $employee): array
     {
-        $monthlyBasic = (float) $employee->basic_salary;
+        // A daily-rated employee's monthly equivalent: daily rate × 26
+        // working days (the usual factor for a six-day work week).
+        $monthlyBasic = $this->isDailyPaid($employee)
+            ? (float) $employee->daily_rate * 26
+            : (float) $employee->basic_salary;
 
         return [
             'sss' => round($this->sssEmployeeShare($monthlyBasic) / 2, 2),

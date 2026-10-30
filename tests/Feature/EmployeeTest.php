@@ -2,6 +2,7 @@
 
 use App\Models\CashAdvance;
 use App\Models\Employee;
+use App\Models\OptionList;
 use App\Models\PayrollPeriod;
 use App\Models\User;
 use App\Services\PayrollCalculator;
@@ -52,6 +53,14 @@ test('the roster shows each employee\'s site and can be searched by it', functio
             ->has('employees.data', 1)
             ->where('employees.data.0.work_location', 'Batangas')
             ->missing('employees.data.0.biometric_user_id'));
+});
+
+test('a site given to an employee joins the work locations list once', function () {
+    makeEmployees(2);
+    Employee::query()->where('employee_code', 'EMP-0001')->first()->update(['work_location' => 'Pepsi SO Dasma']);
+    Employee::query()->where('employee_code', 'EMP-0002')->first()->update(['work_location' => 'Pepsi SO Dasma']);
+
+    expect(OptionList::values('work_location'))->toBe(['Pepsi SO Dasma']);
 });
 
 test('the employee list is paginated at 15 per page by default', function () {
