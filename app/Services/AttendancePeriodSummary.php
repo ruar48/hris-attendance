@@ -51,7 +51,7 @@ class AttendancePeriodSummary
 
             $schedule = $schedules->get($day->toDateString());
 
-            if ($schedule?->status === 'leave') {
+            if (in_array($schedule?->status, Schedule::LEAVE_STATUSES, true)) {
                 $leave++;
 
                 continue;

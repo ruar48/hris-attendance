@@ -61,10 +61,11 @@ test('the time sheet lists every day of the selected month', function () {
             ->has('days', 28));
 });
 
-test('the full-screen workbook shows the schedule tab with a row per scheduled person', function () {
+test('the full-screen workbook shows the schedule tab with a row per person', function () {
     $shift = ShiftType::query()->create([
         'code' => 1, 'name' => 'Morning', 'time_in' => '07:00:00', 'time_out' => '16:00:00', 'is_rest_day' => false,
     ]);
+    $this->employee->update(['time_in_schedule' => '7:00 AM', 'time_out_schedule' => '4:00 PM']);
     Schedule::query()->create([
         'employee_id' => $this->employee->id, 'work_date' => '2025-12-15', 'shift_type_id' => $shift->id, 'status' => 'working',
     ]);
@@ -74,10 +75,10 @@ test('the full-screen workbook shows the schedule tab with a row per scheduled p
         ->assertInertia(fn (AssertableInertia $page) => $page
             ->component('timesheet/workbook')
             ->where('sheet', 'schedule')
-            ->has('schedule', 5) // Dec 2025 touches five Monday-to-Sunday weeks
-            ->where('schedule.2.rows.0.name', 'Don Jeric Del Pilar')
-            ->where('schedule.2.rows.0.time', '7:00AM – 4:00PM')
-            ->where('schedule.2.rows.0.cells.0', 'work'));
+            ->has('schedule.weeks', 5) // Dec 2025 touches five Monday-to-Sunday weeks
+            ->where('schedule.weeks.2.rows.0.name', 'Don Jeric Del Pilar')
+            ->where('schedule.weeks.2.rows.0.time', '7:00 AM - 4:00 PM')
+            ->where('schedule.weeks.2.rows.0.cells.0', "s:{$shift->id}"));
 });
 
 test('the workbook opens on the selected site\'s manning tab, grouped by role', function () {
@@ -102,6 +103,19 @@ test('the workbook opens on the selected site\'s manning tab, grouped by role', 
             ->where('manning.groups.1.title', 'Forklift Operators')
             ->where('manning.groups.1.rows.0.name', 'Don Jeric Del Pilar')
             ->where('manning.groups.1.rows.0.schedule', '6:00 am - 3:00 pm'));
+});
+
+test('the manning page shows a site\'s manning inside the app', function () {
+    OptionList::query()->create(['category' => 'work_location', 'value' => 'Taguig', 'label' => 'Taguig']);
+    $this->employee->update(['work_location' => 'Taguig', 'position' => 'Checker']);
+
+    $this->get(route('manning.index', ['site' => 'Taguig']))
+        ->assertOk()
+        ->assertInertia(fn (AssertableInertia $page) => $page
+            ->component('manning/index')
+            ->where('site', 'Taguig')
+            ->where('manning.groups.2.title', 'CHECKERS')
+            ->where('manning.groups.2.rows.0.name', 'Don Jeric Del Pilar'));
 });
 
 test('the manning tab sets a schedule time and moves people between sites', function () {

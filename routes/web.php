@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\ApplicantController;
+use App\Http\Controllers\AttendanceSummaryController;
 use App\Http\Controllers\CashAdvanceController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EmployeeController;
@@ -9,7 +10,6 @@ use App\Http\Controllers\HolidayController;
 use App\Http\Controllers\OptionListController;
 use App\Http\Controllers\PayrollController;
 use App\Http\Controllers\PayrollSettingsController;
-use App\Http\Controllers\AttendanceSummaryController;
 use App\Http\Controllers\PayslipPdfController;
 use App\Http\Controllers\ScheduleController;
 use App\Http\Controllers\ShiftTypeController;
@@ -52,6 +52,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::get('timesheet', [TimesheetController::class, 'index'])->name('timesheet.index');
     Route::get('timesheet/workbook', [TimesheetController::class, 'workbook'])->name('timesheet.workbook');
+    Route::get('manning', [TimesheetController::class, 'manningPage'])->name('manning.index');
     Route::put('timesheet/manning/{employee}', [TimesheetController::class, 'updateManning'])
         ->name('timesheet.manning.update');
     Route::put('timesheet', [TimesheetController::class, 'update'])->name('timesheet.update');

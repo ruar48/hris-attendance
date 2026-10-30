@@ -1,7 +1,8 @@
-import { Head, router, useForm } from '@inertiajs/react';
-import { CalendarDays, ChevronDown, ChevronUp, Pencil, Save, Trash2, X } from 'lucide-react';
+import { Head, Link, router, useForm } from '@inertiajs/react';
+import { CalendarDays, ChevronDown, ChevronUp, Maximize2, Pencil, Trash2, X } from 'lucide-react';
 import { useState } from 'react';
-import { toast } from 'sonner';
+import { ScheduleSheet } from '@/components/schedule/schedule-sheet';
+import type { ScheduleData } from '@/components/schedule/schedule-sheet';
 
 type ShiftType = {
     id: number;
@@ -12,49 +13,13 @@ type ShiftType = {
     is_rest_day: boolean;
 };
 
-type EmployeeRow = {
-    id: number;
-    employee_code: string;
-    first_name: string;
-    last_name: string;
-    department: string | null;
-};
-
-type Day = {
-    date: string;
-    day: number;
-    dow: string;
-    is_sunday: boolean;
-    is_holiday: boolean;
-};
-
-type CellValue = {
-    status: 'working' | 'leave' | 'business_trip';
-    shift_type_id: number | null;
-};
-
-type Props = {
-    employees: EmployeeRow[];
+type Props = ScheduleData & {
+    sites: { value: string; label: string }[];
+    /** The selected site's value, or "all". */
+    site: string;
+    month: string;
     shiftTypes: ShiftType[];
-    days: Day[];
-    cells: Record<string, CellValue>;
-    start_date: string;
-    end_date: string;
 };
-
-const cellKey = (employeeId: number, date: string) => `${employeeId}-${date}`;
-
-function optionValue(cell: CellValue | undefined): string {
-    if (!cell) {
-return '';
-}
-
-    if (cell.status === 'working') {
-return cell.shift_type_id ? String(cell.shift_type_id) : '';
-}
-
-    return cell.status;
-}
 
 const blankShiftTypeForm = {
     code: '',
@@ -64,79 +29,16 @@ const blankShiftTypeForm = {
     is_rest_day: false as boolean,
 };
 
-export default function SchedulesIndex({ employees, shiftTypes, days, cells, start_date, end_date }: Props) {
-    const [range, setRange] = useState({ start_date, end_date });
-    const [edits, setEdits] = useState<Record<string, CellValue | null>>({});
+export default function SchedulesIndex({ weeks, shift_types, sites, site, month, shiftTypes }: Props) {
     const [showShiftTypes, setShowShiftTypes] = useState(false);
     const [editingShiftType, setEditingShiftType] = useState<ShiftType | null>(null);
     const shiftTypeForm = useForm({ ...blankShiftTypeForm });
 
-    const currentValue = (employeeId: number, date: string): CellValue | undefined => {
-        const key = cellKey(employeeId, date);
+    const visit = (params: { site?: string; month?: string }) =>
+        router.get('/schedules', { site, month, ...params }, { preserveScroll: true });
 
-        if (key in edits) {
-            return edits[key] ?? undefined;
-        }
-
-        return cells[key];
-    };
-
-    const setCell = (employeeId: number, date: string, raw: string) => {
-        const key = cellKey(employeeId, date);
-        const original = cells[key];
-
-        const next: CellValue | null =
-            raw === ''
-                ? null
-                : raw === 'leave' || raw === 'business_trip'
-                  ? { status: raw, shift_type_id: null }
-                  : { status: 'working', shift_type_id: Number(raw) };
-
-        const sameAsOriginal = original
-            ? next !== null && next.status === original.status && next.shift_type_id === original.shift_type_id
-            : next === null;
-
-        setEdits((prev) => {
-            const copy = { ...prev };
-
-            if (sameAsOriginal) {
-                delete copy[key];
-            } else {
-                copy[key] = next;
-            }
-
-            return copy;
-        });
-    };
-
-    const dirtyCount = Object.keys(edits).length;
-
-    const applyRange = () => {
-        router.get('/schedules', range, { preserveState: true });
-    };
-
-    const saveSchedule = () => {
-        const payload = Object.entries(edits).map(([key, value]) => {
-            const [employeeId, ...dateParts] = key.split('-');
-
-            return {
-                employee_id: Number(employeeId),
-                work_date: dateParts.join('-'),
-                status: value?.status ?? '',
-                shift_type_id: value?.shift_type_id ?? null,
-            };
-        });
-
-        router.post(
-            '/schedules/bulk',
-            { cells: payload },
-            {
-                preserveScroll: true,
-                onSuccess: () => setEdits({}),
-                onError: () => toast.error('Could not save the schedule. Please try again.'),
-            }
-        );
-    };
+    const siteLabel = sites.find((s) => s.value === site)?.label ?? 'All sites';
+    const monthLabel = new Date(`${month}-01T00:00:00`).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 
     const cancelShiftTypeEdit = () => {
         shiftTypeForm.setData({ ...blankShiftTypeForm });
@@ -170,51 +72,60 @@ export default function SchedulesIndex({ employees, shiftTypes, days, cells, sta
         <>
             <Head title="Schedules" />
             <div className="flex flex-1 flex-col gap-6 p-4 md:p-6">
-                <div>
-                    <h1 className="text-2xl font-bold text-slate-900">Employee Schedules</h1>
-                    <p className="mt-1 text-sm text-slate-500">
-                        Assign a shift, leave, or business trip to each employee for each date. Rest-day
-                        shifts, leave, and business-trip days are excluded from payroll absence deductions.
-                    </p>
+                <div className="flex flex-wrap items-end justify-between gap-4">
+                    <div>
+                        <h1 className="text-2xl font-bold text-slate-900">
+                            {siteLabel} Schedule · {monthLabel}
+                        </h1>
+                        <p className="mt-1 text-sm text-slate-500">
+                            Laid out like the SHEDULE tab: one block per week, each person's name on the days they work.
+                            Rest days, leave and business trips are excluded from payroll absence deductions, and each
+                            day's shift is what late, undertime and OT are measured against.
+                        </p>
+                    </div>
+                    <div className="flex flex-wrap items-end gap-3">
+                        <label className="text-sm">
+                            <span className="mb-1.5 block text-slate-600">Site</span>
+                            <select
+                                className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 font-medium"
+                                value={site}
+                                onChange={(event) => visit({ site: event.target.value })}
+                            >
+                                {sites.map((option) => (
+                                    <option key={option.value} value={option.value}>
+                                        {option.label}
+                                    </option>
+                                ))}
+                                <option value="all">All sites</option>
+                            </select>
+                        </label>
+                        <label className="text-sm">
+                            <span className="mb-1.5 block text-slate-600">Month</span>
+                            <input
+                                type="month"
+                                className="rounded-xl border border-slate-200 px-3 py-2.5"
+                                value={month}
+                                onChange={(event) => event.target.value && visit({ month: event.target.value })}
+                            />
+                        </label>
+                        <Link
+                            href="/timesheet/workbook"
+                            data={{ site, month, sheet: 'schedule' }}
+                            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 hover:bg-slate-50"
+                        >
+                            <Maximize2 className="size-4" />
+                            Full screen
+                        </Link>
+                    </div>
                 </div>
 
-                <section className="flex flex-wrap items-end gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                    <label className="text-sm">
-                        <span className="mb-1.5 block text-slate-600">Start Date</span>
-                        <input
-                            type="date"
-                            className="rounded-xl border border-slate-200 px-3 py-2.5"
-                            value={range.start_date}
-                            onChange={(e) => setRange((r) => ({ ...r, start_date: e.target.value }))}
-                        />
-                    </label>
-                    <label className="text-sm">
-                        <span className="mb-1.5 block text-slate-600">End Date</span>
-                        <input
-                            type="date"
-                            className="rounded-xl border border-slate-200 px-3 py-2.5"
-                            value={range.end_date}
-                            onChange={(e) => setRange((r) => ({ ...r, end_date: e.target.value }))}
-                        />
-                    </label>
-                    <button
-                        type="button"
-                        onClick={applyRange}
-                        className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50"
-                    >
-                        Apply Range
-                    </button>
-                    <div className="ml-auto">
-                        <button
-                            type="button"
-                            onClick={saveSchedule}
-                            disabled={dirtyCount === 0}
-                            className="inline-flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-teal-700 disabled:opacity-50"
-                        >
-                            <Save className="size-4" />
-                            {dirtyCount === 0 ? 'Save Schedule' : `Save Schedule (${dirtyCount})`}
-                        </button>
-                    </div>
+                <section className="overflow-x-auto rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                    <ScheduleSheet
+                        data={{ weeks, shift_types }}
+                        onOpenEmployee={(employeeId) =>
+                            router.get('/timesheet/workbook', { site, month, employee_id: employeeId, sheet: 'dtr' })
+                        }
+                    />
                 </section>
 
                 <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -390,110 +301,6 @@ export default function SchedulesIndex({ employees, shiftTypes, days, cells, sta
                         </div>
                     )}
                 </section>
-
-                <section className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
-                    <table className="min-w-full border-collapse text-center text-xs">
-                        <thead className="bg-slate-50 text-slate-500">
-                            <tr>
-                                <th
-                                    rowSpan={2}
-                                    className="sticky left-0 z-10 border-b border-r border-slate-200 bg-slate-50 px-3 py-2 text-left font-medium"
-                                >
-                                    Employee
-                                </th>
-                                {days.map((day) => (
-                                    <th
-                                        key={day.date}
-                                        className={`border-b border-slate-200 px-2 py-1 font-medium ${
-                                            day.is_sunday || day.is_holiday ? 'bg-rose-50 text-rose-600' : ''
-                                        }`}
-                                    >
-                                        {day.day}
-                                    </th>
-                                ))}
-                            </tr>
-                            <tr>
-                                {days.map((day) => (
-                                    <th
-                                        key={day.date}
-                                        className={`border-b border-slate-200 px-2 py-1 font-normal ${
-                                            day.is_sunday || day.is_holiday ? 'bg-rose-50 text-rose-500' : ''
-                                        }`}
-                                    >
-                                        {day.dow}
-                                    </th>
-                                ))}
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {employees.length === 0 && (
-                                <tr>
-                                    <td colSpan={days.length + 1} className="px-4 py-8 text-slate-500">
-                                        No active employees.
-                                    </td>
-                                </tr>
-                            )}
-                            {employees.map((employee) => (
-                                <tr key={employee.id} className="border-b border-slate-100 last:border-0">
-                                    <td className="sticky left-0 z-10 border-r border-slate-200 bg-white px-3 py-2 text-left">
-                                        <div className="font-medium text-slate-800">
-                                            {employee.first_name} {employee.last_name}
-                                        </div>
-                                        <div className="text-[10px] text-slate-400">
-                                            {employee.employee_code} · {employee.department ?? '—'}
-                                        </div>
-                                    </td>
-                                    {days.map((day) => {
-                                        const value = currentValue(employee.id, day.date);
-                                        const key = cellKey(employee.id, day.date);
-                                        const dirty = key in edits;
-
-                                        if (!value && day.is_holiday) {
-                                            return (
-                                                <td
-                                                    key={day.date}
-                                                    className="border-r border-slate-100 bg-rose-50/60 px-1 py-1 text-rose-400"
-                                                    title="Holiday"
-                                                >
-                                                    0
-                                                </td>
-                                            );
-                                        }
-
-                                        return (
-                                            <td key={day.date} className="border-r border-slate-100 p-0.5">
-                                                <select
-                                                    value={optionValue(value)}
-                                                    onChange={(e) => setCell(employee.id, day.date, e.target.value)}
-                                                    className={`w-12 rounded-lg border px-1 py-1 text-center text-xs ${
-                                                        dirty
-                                                            ? 'border-teal-400 bg-teal-50'
-                                                            : 'border-transparent bg-transparent hover:border-slate-200'
-                                                    }`}
-                                                >
-                                                    <option value="">—</option>
-                                                    {shiftTypes.map((shiftType) => (
-                                                        <option key={shiftType.id} value={shiftType.id}>
-                                                            {shiftType.code}
-                                                        </option>
-                                                    ))}
-                                                    <option value="leave">25</option>
-                                                    <option value="business_trip">26</option>
-                                                </select>
-                                            </td>
-                                        );
-                                    })}
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </section>
-
-                <p className="text-xs text-slate-500">
-                    Codes come from Shift Types above · <strong>25</strong> = Leave · <strong>26</strong> =
-                    Business trip · <strong>0</strong> = Holiday (shown automatically, not editable unless
-                    overridden).
-                </p>
             </div>
         </>
     );

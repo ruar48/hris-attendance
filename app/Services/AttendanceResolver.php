@@ -7,10 +7,13 @@ use App\Models\DtrLog;
 use App\Models\Employee;
 use App\Models\Holiday;
 use App\Models\PayrollSetting;
+use App\Models\Schedule;
+use App\Models\ShiftType;
 use Carbon\Carbon;
 use Carbon\CarbonInterface;
 use Carbon\CarbonPeriod;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 class AttendanceResolver
 {
@@ -63,8 +66,7 @@ class AttendanceResolver
             return null;
         }
 
-        $shiftStart = $this->normalizeTime(PayrollSetting::getValue('shift_start', '08:00'));
-        $shiftEnd = $this->normalizeTime(PayrollSetting::getValue('shift_end', '17:00'));
+        [$shiftStart, $shiftEnd] = $this->shiftFor($employee, $date);
         $graceMinutes = PayrollSetting::int('late_grace_minutes');
         $undertimeGraceMinutes = PayrollSetting::int('undertime_grace_minutes');
         $otMinimumMinutes = PayrollSetting::int('ot_minimum_minutes');
@@ -170,6 +172,62 @@ class AttendanceResolver
         ];
 
         return $this->persist($employee, $date, $attributes);
+    }
+
+    /**
+     * Recompute already-encoded days after their shift changed (a schedule
+     * edit, or a new regular schedule time). Days with no time sheet entry
+     * are left alone. Pass null to recompute every encoded day.
+     *
+     * @param  iterable<string>|null  $dates  Y-m-d
+     */
+    public function refreshEncodedDays(Employee $employee, ?iterable $dates = null): void
+    {
+        DtrLog::query()
+            ->where('employee_id', $employee->id)
+            ->when($dates !== null, fn ($query) => $query->whereIn(
+                DB::raw('date(work_date)'),
+                collect($dates)->values()->all()
+            ))
+            ->get()
+            ->each(function (DtrLog $log) use ($employee) {
+                $date = Carbon::parse($log->work_date);
+                $this->resolveDay($employee, $date, Holiday::findForDate($date));
+            });
+    }
+
+    /**
+     * The shift a day is measured against: that day's scheduled shift, else
+     * the person's regular schedule time from the Manning tab, else the
+     * company default in payroll settings. A shift running past midnight
+     * can't be measured on a same-day clock, so it falls through to the next.
+     *
+     * @return array{0: string, 1: string}
+     */
+    public function shiftFor(Employee $employee, CarbonInterface $date): array
+    {
+        $scheduled = Schedule::query()
+            ->with('shiftType')
+            ->where('employee_id', $employee->id)
+            ->whereDate('work_date', $date->toDateString())
+            ->first()
+            ?->shiftType;
+
+        $candidates = [
+            [$scheduled && ! $scheduled->is_rest_day ? $scheduled->time_in : null, $scheduled?->time_out],
+            [ShiftType::toDbTime($employee->time_in_schedule), ShiftType::toDbTime($employee->time_out_schedule)],
+        ];
+
+        foreach ($candidates as [$in, $out]) {
+            if ($in && $out && $this->normalizeTime($out) > $this->normalizeTime($in)) {
+                return [$this->normalizeTime($in), $this->normalizeTime($out)];
+            }
+        }
+
+        return [
+            $this->normalizeTime(PayrollSetting::getValue('shift_start', '08:00')),
+            $this->normalizeTime(PayrollSetting::getValue('shift_end', '17:00')),
+        ];
     }
 
     /**

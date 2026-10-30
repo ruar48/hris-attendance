@@ -10,7 +10,9 @@ use App\Models\Holiday;
 use App\Models\OptionList;
 use App\Models\PayrollSetting;
 use App\Models\Schedule;
+use App\Models\ShiftType;
 use App\Services\AttendanceResolver;
+use App\Services\ScheduleSheetBuilder;
 use Carbon\Carbon;
 use Carbon\CarbonPeriod;
 use Illuminate\Http\RedirectResponse;
@@ -45,10 +47,24 @@ class TimesheetController extends Controller
     }
 
     /**
-     * The same time sheets as a full-screen workbook, with the schedule as
-     * its first tab — no app sidebar or header.
+     * The Manning tab on its own, inside the app (with the sidebar).
      */
-    public function workbook(Request $request): Response
+    public function manningPage(Request $request): Response
+    {
+        $site = $this->site($request);
+
+        return Inertia::render('manning/index', [
+            'sites' => $this->siteOptions(),
+            'site' => $site ?? 'all',
+            'manning' => $this->manning($site),
+        ]);
+    }
+
+    /**
+     * The same time sheets as a full-screen workbook, with the Manning and
+     * schedule tabs first — no app sidebar or header.
+     */
+    public function workbook(Request $request, ScheduleSheetBuilder $builder): Response
     {
         $props = $this->sheetProps($request);
         $site = $this->site($request);
@@ -63,7 +79,7 @@ class TimesheetController extends Controller
         return Inertia::render('timesheet/workbook', [
             ...$props,
             'sheet' => $sheet,
-            'schedule' => $sheet === 'schedule' ? $this->scheduleWeeks($month->copy(), $month->copy()->endOfMonth(), $site) : [],
+            'schedule' => $sheet === 'schedule' ? $builder->build($month, $site) : null,
             'manning' => $sheet === 'manning' ? $this->manning($site) : null,
         ]);
     }
@@ -72,7 +88,7 @@ class TimesheetController extends Controller
      * A change made on the Manning tab: moving someone to or off a site, or
      * setting their regular schedule time.
      */
-    public function updateManning(Request $request, Employee $employee): RedirectResponse
+    public function updateManning(Request $request, Employee $employee, AttendanceResolver $resolver): RedirectResponse
     {
         $data = $request->validate([
             'work_location' => ['sometimes', 'nullable', Rule::in(OptionList::values('work_location'))],
@@ -88,6 +104,11 @@ class TimesheetController extends Controller
         }
 
         $employee->update($data);
+
+        // Encoded days without a scheduled shift are measured against this one.
+        if (array_key_exists('shift_schedule', $data)) {
+            $resolver->refreshEncodedDays($employee);
+        }
 
         Inertia::flash('toast', ['type' => 'success', 'message' => "Updated {$employee->full_name}."]);
 
@@ -111,6 +132,19 @@ class TimesheetController extends Controller
     }
 
     /**
+     * @return list<array{value: string, label: string}>
+     */
+    protected function siteOptions(): array
+    {
+        return OptionList::query()
+            ->category('work_location')
+            ->orderBy('sort_order')
+            ->get()
+            ->map(fn (OptionList $option) => ['value' => $option->value, 'label' => $option->label])
+            ->all();
+    }
+
+    /**
      * @return array<string, mixed>
      */
     protected function sheetProps(Request $request): array
@@ -130,23 +164,16 @@ class TimesheetController extends Controller
         $end = $month->copy()->endOfMonth();
 
         return [
-            'sites' => OptionList::query()
-                ->category('work_location')
-                ->orderBy('sort_order')
-                ->get()
-                ->map(fn (OptionList $option) => ['value' => $option->value, 'label' => $option->label])
-                ->all(),
+            'sites' => $this->siteOptions(),
             'site' => $site ?? 'all',
             'employees' => $employees,
             'employee' => $employee,
             'month' => $month->format('Y-m'),
             'days' => $employee ? $this->days($employee, $start, $end) : [],
             'history' => $employee ? $this->history($employee, $start, $end) : [],
-            // Printed on the form header and its "VERIFIED" footer.
-            'official_hours' => $this->shiftLabel(
-                (string) PayrollSetting::getValue('shift_start', '08:00'),
-                (string) PayrollSetting::getValue('shift_end', '17:00'),
-            ),
+            // Printed on the form header: the person's regular Manning
+            // schedule time, else the company default.
+            'official_hours' => $this->officialHours($employee ? Employee::query()->find($employee->id) : null),
             'in_charge' => $request->user()?->name,
         ];
     }
@@ -225,99 +252,17 @@ class TimesheetController extends Controller
         ];
     }
 
-    /**
-     * The SHEDULE tab: one block per Monday-to-Sunday week touching the
-     * month, with a row per scheduled employee showing who works which day.
-     *
-     * @return list<array<string, mixed>>
-     */
-    protected function scheduleWeeks(Carbon $start, Carbon $end, ?string $site): array
+    protected function officialHours(?Employee $employee): ?string
     {
-        $weekStart = $start->copy()->startOfWeek(Carbon::MONDAY);
-        $weekEnd = $end->copy()->endOfWeek(Carbon::SUNDAY);
-        $holidays = Holiday::mapForPeriod($weekStart, $weekEnd);
+        $in = ShiftType::toDbTime($employee?->time_in_schedule);
+        $out = ShiftType::toDbTime($employee?->time_out_schedule);
 
-        $schedules = Schedule::query()
-            ->with(['shiftType', 'employee:id,first_name,last_name,position'])
-            ->when($site, fn ($query) => $query->whereHas('employee', fn ($q) => $q->where('work_location', $site)))
-            ->whereDate('work_date', '>=', $weekStart->toDateString())
-            ->whereDate('work_date', '<=', $weekEnd->toDateString())
-            ->get()
-            ->groupBy('employee_id');
-
-        $weeks = [];
-
-        for ($monday = $weekStart->copy(); $monday->lte($end); $monday->addWeek()) {
-            $dates = collect(CarbonPeriod::create($monday, $monday->copy()->addDays(6)))
-                ->map(fn ($day) => Carbon::parse($day));
-
-            $rows = [];
-
-            foreach ($schedules as $employeeSchedules) {
-                $byDate = $employeeSchedules->keyBy(fn (Schedule $s) => $s->work_date->toDateString());
-                $week = $dates->map(fn (Carbon $d) => $byDate->get($d->toDateString()));
-
-                if ($week->filter()->isEmpty()) {
-                    continue;
-                }
-
-                // The row's time label is the shift worked most that week.
-                $shift = $week->filter(fn (?Schedule $s) => $s?->shiftType && ! $s->shiftType->is_rest_day)
-                    ->map(fn (Schedule $s) => $s->shiftType)
-                    ->countBy('id')
-                    ->sortDesc()
-                    ->keys()
-                    ->first();
-                $shiftType = $shift ? $week->first(fn (?Schedule $s) => $s?->shift_type_id === $shift)?->shiftType : null;
-
-                /** @var Schedule $first */
-                $first = $employeeSchedules->first();
-                $employee = $first->employee;
-
-                $rows[] = [
-                    'employee_id' => $employee?->id,
-                    'name' => $employee ? "{$employee->first_name} {$employee->last_name}" : '—',
-                    'position' => $employee?->position,
-                    'time' => $shiftType ? $this->shiftLabel($shiftType->time_in, $shiftType->time_out) : null,
-                    'time_sort' => $shiftType?->time_in ?? '99',
-                    'cells' => $week->map(function (?Schedule $s, int $i) use ($dates, $holidays) {
-                        if (! $s) {
-                            return null;
-                        }
-
-                        if ($s->status === 'leave') {
-                            return 'leave';
-                        }
-
-                        if ($s->shiftType?->is_rest_day) {
-                            return $holidays->has($dates[$i]->toDateString()) ? 'holiday' : 'off';
-                        }
-
-                        return 'work';
-                    })->values()->all(),
-                    'remarks' => $week->filter(fn (?Schedule $s) => filled($s?->notes))
-                        ->map(fn (Schedule $s) => $s->work_date->format('n/j/Y').' '.$s->notes)
-                        ->unique()
-                        ->values()
-                        ->all(),
-                ];
-            }
-
-            usort($rows, fn (array $a, array $b) => [$a['time_sort'], $a['name']] <=> [$b['time_sort'], $b['name']]);
-
-            $weeks[] = [
-                'days' => $dates->map(fn (Carbon $d) => [
-                    'date' => $d->toDateString(),
-                    'label' => $d->format('F j, Y'),
-                    'dow' => strtoupper($d->format('D')),
-                    'in_month' => $d->between($start, $end),
-                    'holiday' => $holidays->get($d->toDateString())?->name,
-                ])->all(),
-                'rows' => $rows,
-            ];
-        }
-
-        return $weeks;
+        return $in && $out
+            ? $this->shiftLabel($in, $out)
+            : $this->shiftLabel(
+                (string) PayrollSetting::getValue('shift_start', '08:00'),
+                (string) PayrollSetting::getValue('shift_end', '17:00'),
+            );
     }
 
     public function update(Request $request, AttendanceResolver $resolver): RedirectResponse
@@ -526,9 +471,13 @@ class TimesheetController extends Controller
                 'dow' => $day->format('D'),
                 'is_sunday' => $day->isSunday(),
                 'holiday' => $holidays->get($date)?->name,
-                'schedule' => $shift
-                    ? ($shift->is_rest_day ? 'Rest day' : $this->shiftLabel($shift->time_in, $shift->time_out))
-                    : null,
+                'schedule' => match (true) {
+                    // Absent, sick leave… set on the schedule.
+                    $schedule !== null && isset(Schedule::STATUS_LABELS[$schedule->status]) => Schedule::STATUS_LABELS[$schedule->status],
+                    $shift === null => null,
+                    $shift->is_rest_day => 'Rest day',
+                    default => $this->shiftLabel($shift->time_in, $shift->time_out),
+                },
                 'time_in' => $entry?->day_status === 'worked' ? $this->toInputTime($entry->time_in) : '',
                 'break_out' => $entry?->day_status === 'worked' ? $this->toInputTime($entry->break_out) : '',
                 'break_in' => $entry?->day_status === 'worked' ? $this->toInputTime($entry->break_in) : '',

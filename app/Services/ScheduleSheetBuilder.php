@@ -15,8 +15,9 @@ use Illuminate\Support\Collection;
  * week touching the month, a row per person working at the site, and in each
  * day the cell value the sheet shows and edits.
  *
- * Cell values: "s:{shift_type_id}" (working that shift), "off", "leave",
- * "business_trip", or "" (nothing assigned).
+ * Cell values: "s:{shift_type_id}" (working that shift), "off", a
+ * Schedule::STATUS_LABELS key (absent, sick leave…), or "" (no entry — the
+ * person works their regular Manning shift that day).
  */
 class ScheduleSheetBuilder
 {
@@ -86,6 +87,10 @@ class ScheduleSheetBuilder
                         'position' => $employee->position,
                         'time' => $row['regular'] ? $this->label($row['regular']) : null,
                         'regular_shift_type_id' => $row['regular']?->id,
+                        // A day with no entry is a day on the Manning shift,
+                        // but only while the person is employed.
+                        'active_from' => $employee->hire_date?->toDateString(),
+                        'active_until' => $employee->last_working_day?->toDateString(),
                         'cells' => $week->map(fn (?Schedule $s) => $this->cellValue($s))->values()->all(),
                         'remarks' => $week->filter(fn (?Schedule $s) => filled($s?->notes))
                             ->map(fn (Schedule $s) => $s->work_date->format('n/j/Y').' '.$s->notes)
@@ -132,8 +137,7 @@ class ScheduleSheetBuilder
     {
         return match (true) {
             $schedule === null => '',
-            $schedule->status === 'leave' => 'leave',
-            $schedule->status === 'business_trip' => 'business_trip',
+            array_key_exists($schedule->status, Schedule::STATUS_LABELS) => $schedule->status,
             (bool) $schedule->shiftType?->is_rest_day => 'off',
             $schedule->shift_type_id !== null => "s:{$schedule->shift_type_id}",
             default => '',

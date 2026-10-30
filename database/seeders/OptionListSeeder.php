@@ -43,6 +43,8 @@ class OptionListSeeder extends Seeder
                 ['value' => 'Checker/TL', 'label' => 'Checker/TL'],
                 ['value' => 'Secretary/Assistant', 'label' => 'Secretary/Assistant'],
                 ['value' => 'Driver/Reliever', 'label' => 'Driver/Reliever'],
+                ['value' => 'Inventory Analyst', 'label' => 'Inventory Analyst'],
+                ['value' => 'Utility Personnel', 'label' => 'Utility Personnel'],
             ],
             'department' => [
                 ['value' => 'Maintenance', 'label' => 'Maintenance'],

@@ -9,6 +9,22 @@ use Illuminate\Support\Collection;
 
 class Schedule extends Model
 {
+    /** Day types other than working a shift, as labelled on the schedule. */
+    public const STATUS_LABELS = [
+        'absent' => 'Absent',
+        'sick_leave' => 'Sick Leave',
+        'vacation_leave' => 'Vacation Leave',
+        'emergency_leave' => 'Emergency Leave',
+        'leave' => 'Leave',
+        'business_trip' => 'Business Trip',
+    ];
+
+    /**
+     * Excused from work: not counted as absent in payroll. "absent" is not
+     * here — a planned absence is still a missed working day.
+     */
+    public const LEAVE_STATUSES = ['leave', 'sick_leave', 'vacation_leave', 'emergency_leave'];
+
     protected $fillable = [
         'employee_id',
         'work_date',

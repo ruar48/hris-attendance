@@ -17,5 +17,6 @@ class DatabaseSeeder extends Seeder
         $this->call(EmployeeCompensationSeeder::class);
         $this->call(EmployeeGovernmentBenefitsSeeder::class);
         $this->call(TayabasTimesheetSeeder::class);
+        $this->call(SiteManningSeeder::class);
     }
 }

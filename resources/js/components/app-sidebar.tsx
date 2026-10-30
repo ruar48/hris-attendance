@@ -76,6 +76,12 @@ const attendanceNavItems = [
         tone: 'bg-amber-100 text-amber-600',
     },
     {
+        title: 'Manning',
+        href: '/manning',
+        icon: Users,
+        tone: 'bg-lime-100 text-lime-700',
+    },
+    {
         title: 'Schedules',
         href: '/schedules',
         icon: CalendarDays,

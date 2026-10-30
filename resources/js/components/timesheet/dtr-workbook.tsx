@@ -5,6 +5,8 @@ import type { FocusEvent, KeyboardEvent } from 'react';
 import { toast } from 'sonner';
 import { EmployeeCombobox } from '@/components/employee-combobox';
 import type { EmployeeOption } from '@/components/employee-combobox';
+import { ScheduleSheet } from '@/components/schedule/schedule-sheet';
+import type { ScheduleData } from '@/components/schedule/schedule-sheet';
 import { useOptionList } from '@/hooks/use-option-list';
 
 type DayStatus = 'worked' | 'day_off' | 'absent' | 'leave';
@@ -44,18 +46,6 @@ type HistoryEntry = {
 
 type SheetEmployee = EmployeeOption & { position: string | null };
 
-export type ScheduleWeek = {
-    days: { date: string; label: string; dow: string; in_month: boolean; holiday: string | null }[];
-    rows: {
-        employee_id: number | null;
-        name: string;
-        position: string | null;
-        time: string | null;
-        cells: ('work' | 'off' | 'holiday' | 'leave' | null)[];
-        remarks: string[];
-    }[];
-};
-
 export type TimesheetPageProps = {
     sites: { value: string; label: string }[];
     /** The selected site's value, or "all". */
@@ -92,7 +82,7 @@ type Props = TimesheetPageProps & {
     /** Full-screen workbook: no app chrome, with MANNING and SCHEDULE tabs first. */
     fullScreen?: boolean;
     sheet?: SheetName;
-    schedule?: ScheduleWeek[];
+    schedule?: ScheduleData | null;
     manning?: Manning | null;
 };
 
@@ -268,7 +258,7 @@ export function DtrWorkbook({
     in_charge,
     fullScreen = false,
     sheet = 'dtr',
-    schedule = [],
+    schedule = null,
     manning = null,
 }: Props) {
     const siteLabel = sites.find((s) => s.value === site)?.label ?? 'All Sites';
@@ -493,7 +483,7 @@ export function DtrWorkbook({
 
                     <div className="ml-auto flex items-center gap-2">
                         <Link
-                            href={fullScreen ? '/timesheet' : '/timesheet/workbook'}
+                            href={fullScreen ? { manning: '/manning', schedule: '/schedules', dtr: '/timesheet' }[sheet] : '/timesheet/workbook'}
                             data={{ site, employee_id: employee?.id, month }}
                             className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-200/60"
                         >
@@ -546,8 +536,8 @@ export function DtrWorkbook({
                             site={site}
                             onOpen={(id) => visit({ employee_id: id, sheet: 'dtr' })}
                         />
-                    ) : sheet === 'schedule' ? (
-                        <ScheduleSheet weeks={schedule} onOpen={(id) => visit({ employee_id: id, sheet: 'dtr' })} />
+                    ) : sheet === 'schedule' && schedule ? (
+                        <ScheduleSheet data={schedule} onOpenEmployee={(id) => visit({ employee_id: id, sheet: 'dtr' })} />
                     ) : (
                     <>
                     {!employee ? (
@@ -950,7 +940,7 @@ function SheetTab({ label, active, onClick }: { label: string; active: boolean; 
  * The Manning tab: the site's people by role, with their start date and
  * regular schedule time. Schedule times and site membership save as they change.
  */
-function ManningSheet({ manning, site, onOpen }: { manning: Manning; site: string; onOpen: (employeeId: number) => void }) {
+export function ManningSheet({ manning, site, onOpen }: { manning: Manning; site: string; onOpen: (employeeId: number) => void }) {
     const shiftOptions = useOptionList('shift_schedule');
     const border = 'border border-[#1f1f1f]';
 
@@ -1059,121 +1049,6 @@ function ManningSheet({ manning, site, onOpen }: { manning: Manning; site: strin
                     </div>
                 </div>
             )}
-        </div>
-    );
-}
-
-// Weekday column colours from the SHEDULE tab.
-const WEEKDAY_TONES = ['#f4cccc', '#d9d2e9', '#9fc5e8', '#d9ead3', '#ffe599', '#f9cb9c', '#ea9999'];
-
-/** The SHEDULE tab: a block per week, a row per person, a name in each day they work. */
-function ScheduleSheet({ weeks, onOpen }: { weeks: ScheduleWeek[]; onOpen: (employeeId: number) => void }) {
-    const border = 'border border-[#9e9e9e]';
-
-    if (weeks.every((week) => week.rows.length === 0)) {
-        return (
-            <div className="mx-auto max-w-md bg-white p-8 text-center text-sm text-slate-500">
-                No schedules for this month yet. Assign shifts on the Schedules page.
-            </div>
-        );
-    }
-
-    return (
-        <div className="dtr-print flex flex-col gap-6 font-[Calibri,Carlito,Arial,sans-serif] text-[12px]">
-            {weeks.map((week) => (
-                <table key={week.days[0].date} className="border-collapse bg-white">
-                    <thead>
-                        <tr>
-                            <th className={`${border} w-36 bg-[#dbe8f5] text-[15px]`} rowSpan={2}>
-                                Time
-                            </th>
-                            {week.days.map((day, i) => (
-                                <th
-                                    key={day.date}
-                                    className={`${border} w-36 text-[15px] font-bold`}
-                                    style={{ backgroundColor: WEEKDAY_TONES[i] }}
-                                >
-                                    {day.dow}
-                                </th>
-                            ))}
-                            <th className={`${border} w-36 bg-[#f4cccc] text-[15px]`} rowSpan={2}>
-                                Position
-                            </th>
-                            <th className={`${border} min-w-64 bg-[#efefef] text-[15px]`} rowSpan={2}>
-                                Remarks
-                            </th>
-                        </tr>
-                        <tr>
-                            {week.days.map((day) => (
-                                <th
-                                    key={day.date}
-                                    className={`${border} bg-white px-1 text-[11px] font-semibold ${
-                                        day.holiday ? 'text-red-600' : day.in_month ? 'text-slate-900' : 'text-slate-400'
-                                    }`}
-                                    title={day.holiday ?? undefined}
-                                >
-                                    {day.label}
-                                </th>
-                            ))}
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {week.rows.map((row, r) => (
-                            <tr key={`${row.employee_id}-${r}`}>
-                                <td className={`${border} bg-[#dbe8f5] px-1.5 font-semibold whitespace-nowrap`}>
-                                    {row.time ?? '—'}
-                                </td>
-                                {row.cells.map((cell, i) => (
-                                    <td
-                                        key={week.days[i].date}
-                                        className={`${border} px-1.5 whitespace-nowrap`}
-                                        style={{ backgroundColor: cell ? WEEKDAY_TONES[i] : undefined }}
-                                    >
-                                        {cell === 'work' && (
-                                            <button
-                                                type="button"
-                                                className="hover:underline"
-                                                onClick={() => row.employee_id && onOpen(row.employee_id)}
-                                            >
-                                                {row.name}
-                                            </button>
-                                        )}
-                                        {cell === 'off' && (
-                                            <span className="font-[cursive] text-[11px] text-[#7f1d1d]">Day OFF</span>
-                                        )}
-                                        {cell === 'holiday' && (
-                                            <span className="font-[cursive] text-[13px] font-bold text-red-600">HOLIDAY</span>
-                                        )}
-                                        {cell === 'leave' && <span className="text-[11px] text-blue-800">On Leave</span>}
-                                    </td>
-                                ))}
-                                <td className={`${border} bg-[#f4cccc] px-1.5 whitespace-nowrap uppercase`}>
-                                    {row.position ?? ''}
-                                </td>
-                                <td className={`${border} px-1.5 text-[11px]`}>
-                                    {row.remarks.map((remark) => (
-                                        <span key={remark} className="mr-2 inline-block bg-[#ffff00] px-1">
-                                            {remark}
-                                        </span>
-                                    ))}
-                                </td>
-                            </tr>
-                        ))}
-                        <tr>
-                            <td className={border} />
-                            {week.days.map((day) => (
-                                <td
-                                    key={day.date}
-                                    className={`${border} px-1.5 text-[10px] ${day.holiday ? 'bg-[#4a86e8] text-white' : ''}`}
-                                >
-                                    {day.holiday ?? ''}
-                                </td>
-                            ))}
-                            <td className={border} colSpan={2} />
-                        </tr>
-                    </tbody>
-                </table>
-            ))}
         </div>
     );
 }

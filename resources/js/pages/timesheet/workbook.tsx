@@ -1,9 +1,12 @@
+import type { ScheduleData } from '@/components/schedule/schedule-sheet';
 import { DtrWorkbook } from '@/components/timesheet/dtr-workbook';
-import type { ScheduleWeek, TimesheetPageProps } from '@/components/timesheet/dtr-workbook';
+import type { SheetName, TimesheetPageProps } from '@/components/timesheet/dtr-workbook';
+import type { Manning } from '@/components/timesheet/dtr-workbook';
 
 type Props = TimesheetPageProps & {
-    sheet: 'dtr' | 'schedule';
-    schedule: ScheduleWeek[];
+    sheet: SheetName;
+    schedule: ScheduleData | null;
+    manning: Manning | null;
 };
 
 /**
