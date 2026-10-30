@@ -23,7 +23,15 @@ class AttendanceAuditLog extends Model
         'employee_id',
         'work_date',
         'action',
+        'source',
         'changes',
+        'ip_address',
+    ];
+
+    /** @var array<string, string> Where a change was made. */
+    public const SOURCES = [
+        'timesheet' => 'Time Sheet',
+        'schedule' => 'Schedule',
     ];
 
     protected function casts(): array

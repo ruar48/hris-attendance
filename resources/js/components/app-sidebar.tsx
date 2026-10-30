@@ -8,6 +8,7 @@ import {
     FileBarChart,
     LayoutGrid,
     Settings,
+    ShieldCheck,
     SlidersHorizontal,
     Users,
     Wallet,
@@ -104,6 +105,12 @@ const attendanceNavItems = [
         href: '/attendance-summary/report',
         icon: FileBarChart,
         tone: 'bg-purple-100 text-purple-600',
+    },
+    {
+        title: 'Time Sheet Logs',
+        href: '/attendance-logs',
+        icon: ShieldCheck,
+        tone: 'bg-slate-200 text-slate-700',
     },
 ];
 

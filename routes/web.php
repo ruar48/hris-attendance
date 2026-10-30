@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\ApplicantController;
+use App\Http\Controllers\AttendanceLogController;
 use App\Http\Controllers\AttendanceSummaryController;
 use App\Http\Controllers\CashAdvanceController;
 use App\Http\Controllers\DashboardController;
@@ -53,6 +54,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('timesheet', [TimesheetController::class, 'index'])->name('timesheet.index');
     Route::get('timesheet/workbook', [TimesheetController::class, 'workbook'])->name('timesheet.workbook');
     Route::get('manning', [TimesheetController::class, 'manningPage'])->name('manning.index');
+    Route::get('attendance-logs', [AttendanceLogController::class, 'index'])->name('attendance-logs.index');
+    Route::get('attendance-logs/export', [AttendanceLogController::class, 'export'])->name('attendance-logs.export');
     Route::put('timesheet/manning/{employee}', [TimesheetController::class, 'updateManning'])
         ->name('timesheet.manning.update');
     Route::put('timesheet', [TimesheetController::class, 'update'])->name('timesheet.update');

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AttendanceAuditLog;
 use App\Models\Employee;
 use App\Models\OptionList;
 use App\Models\Schedule;
@@ -44,7 +45,7 @@ class ScheduleController extends Controller
      * Save edited cells. Each cell's value is what the sheet shows: a shift
      * ("s:{id}"), "off", a Schedule::STATUS_LABELS key, or "" to clear the day.
      */
-    public function bulkUpdate(Request $request, AttendanceResolver $resolver): RedirectResponse
+    public function bulkUpdate(Request $request, AttendanceResolver $resolver, ScheduleSheetBuilder $builder): RedirectResponse
     {
         $data = $request->validate([
             'cells' => ['required', 'array'],
@@ -58,17 +59,33 @@ class ScheduleController extends Controller
 
         $saved = 0;
 
-        DB::transaction(function () use ($data, $resolver, &$saved) {
+        DB::transaction(function () use ($data, $resolver, $builder, $request, &$saved) {
             foreach ($data['cells'] as $cell) {
                 // work_date is cast to `date`, which Eloquent stores as a full
                 // "Y-m-d 00:00:00" string — a plain "Y-m-d" match via where()
                 // never finds the existing row, so this must use whereDate().
                 $existing = Schedule::query()
+                    ->with('shiftType')
                     ->where('employee_id', $cell['employee_id'])
                     ->whereDate('work_date', $cell['work_date'])
                     ->first();
 
-                $attributes = $this->attributesFor((string) ($cell['value'] ?? ''));
+                $before = $builder->cellValue($existing);
+                $after = (string) ($cell['value'] ?? '');
+
+                if ($before !== $after) {
+                    AttendanceAuditLog::query()->create([
+                        'user_id' => $request->user()?->id,
+                        'employee_id' => $cell['employee_id'],
+                        'work_date' => $cell['work_date'],
+                        'action' => $existing === null ? 'created' : ($after === '' ? 'deleted' : 'updated'),
+                        'source' => 'schedule',
+                        'changes' => ['schedule' => [$this->describe($before), $this->describe($after)]],
+                        'ip_address' => $request->ip(),
+                    ]);
+                }
+
+                $attributes = $this->attributesFor($after);
 
                 if ($attributes === null) {
                     $existing?->delete();
@@ -100,6 +117,23 @@ class ScheduleController extends Controller
         ]);
 
         return back();
+    }
+
+    /**
+     * A schedule cell value as the change log shows it.
+     */
+    protected function describe(string $value): string
+    {
+        return match (true) {
+            $value === '' => 'Manning shift',
+            $value === 'off' => 'Day OFF',
+            array_key_exists($value, Schedule::STATUS_LABELS) => Schedule::STATUS_LABELS[$value],
+            default => ($shift = ShiftType::query()->find((int) substr($value, 2)))
+                ? ($shift->time_in && $shift->time_out
+                    ? Carbon::parse($shift->time_in)->format('g:i A').' - '.Carbon::parse($shift->time_out)->format('g:i A')
+                    : $shift->name)
+                : 'Shift',
+        };
     }
 
     /**

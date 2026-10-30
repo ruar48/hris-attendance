@@ -460,7 +460,9 @@ class TimesheetController extends Controller
             'employee_id' => $employee->id,
             'work_date' => $date,
             'action' => $action,
+            'source' => 'timesheet',
             'changes' => $changes,
+            'ip_address' => request()->ip(),
         ]);
     }
 
