@@ -186,6 +186,28 @@
             color: #b91c1c;
         }
 
+        .extras {
+            margin-top: 8px;
+        }
+
+        .adjustments-title {
+            color: #7c3aed;
+        }
+
+        .subsidy-title {
+            color: #b45309;
+        }
+
+        .total-adjustments {
+            background: #f5f3ff;
+            color: #6d28d9;
+        }
+
+        .total-subsidy {
+            background: #fffbeb;
+            color: #b45309;
+        }
+
         .net {
             margin-top: 8px;
             text-align: center;
@@ -316,12 +338,12 @@
                             @if ((float) $payslip->late_deduction > 0)
                                 <tr><td class="label">Late</td><td class="amount">{{ $peso($payslip->late_deduction) }}</td></tr>
                             @endif
-                                @if ((float) $payslip->undertime_deduction > 0)
-                                    <tr><td class="label">Undertime</td><td class="amount">{{ $peso($payslip->undertime_deduction) }}</td></tr>
-                                @endif
-                                    @if ((float) $payslip->absence_deduction > 0)
-                                        <tr><td class="label">Absences ($payslip->absent_days) ({{ $payslip->absent_days }})@endif</td><td class="amount">{{ $peso($payslip->absence_deduction) }}</td></tr>
-                                    @endif
+                            @if ((float) $payslip->undertime_deduction > 0)
+                                <tr><td class="label">Undertime</td><td class="amount">{{ $peso($payslip->undertime_deduction) }}</td></tr>
+                            @endif
+                            @if ((float) $payslip->absence_deduction > 0)
+                                <tr><td class="label">Absences{{ $payslip->absent_days > 0 ? " ({$payslip->absent_days})" : '' }}</td><td class="amount">{{ $peso($payslip->absence_deduction) }}</td></tr>
+                            @endif
                             @if ((float) $payslip->cash_advance_deduction > 0)
                                 <tr><td class="label">Cash Advance</td><td class="amount">{{ $peso($payslip->cash_advance_deduction) }}</td></tr>
                             @endif
@@ -341,10 +363,52 @@
                 </tr>
             </table>
 
+            @if ((float) $payslip->total_adjustments > 0)
+                <div class="extras">
+                    <p class="section-title adjustments-title">Adjustments</p>
+                    <table class="row">
+                        @foreach (\App\Models\Payslip::ADJUSTMENT_FIELDS as $field => $label)
+                            @if ((float) $payslip->{$field} > 0)
+                                <tr><td class="label">{{ $label }}</td><td class="amount">{{ $peso($payslip->{$field}) }}</td></tr>
+                            @endif
+                        @endforeach
+                    </table>
+                    <div class="total-box total-adjustments">
+                        <table class="row">
+                            <tr>
+                                <td>Total Adjustments</td>
+                                <td class="amount">{{ $peso($payslip->total_adjustments) }}</td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+            @endif
+
             <div class="net">
                 <div class="label">Net Salary</div>
                 <div class="amount">{{ $peso($payslip->net_pay) }}</div>
             </div>
+
+            @if ((float) $payslip->warehouse_subsidy > 0)
+                <div class="extras">
+                    <p class="section-title subsidy-title">Warehouse Subsidy</p>
+                    <table class="row">
+                        @foreach (\App\Models\Payslip::WAREHOUSE_SUBSIDY_FIELDS as $field => $label)
+                            @if ((float) $payslip->{$field} > 0)
+                                <tr><td class="label">{{ $label }}</td><td class="amount">{{ $peso($payslip->{$field}) }}</td></tr>
+                            @endif
+                        @endforeach
+                    </table>
+                    <div class="total-box total-subsidy">
+                        <table class="row">
+                            <tr>
+                                <td>Total Warehouse Subsidy</td>
+                                <td class="amount">{{ $peso($payslip->warehouse_subsidy) }}</td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+            @endif
 
             <table class="signatures">
                 <tr>
@@ -429,12 +493,12 @@
                             @if ((float) $payslip->late_deduction > 0)
                                 <tr><td class="label">Late</td><td class="amount">{{ $peso($payslip->late_deduction) }}</td></tr>
                             @endif
-                                @if ((float) $payslip->undertime_deduction > 0)
-                                    <tr><td class="label">Undertime</td><td class="amount">{{ $peso($payslip->undertime_deduction) }}</td></tr>
-                                @endif
-                                    @if ((float) $payslip->absence_deduction > 0)
-                                        <tr><td class="label">Absences ($payslip->absent_days) ({{ $payslip->absent_days }})@endif</td><td class="amount">{{ $peso($payslip->absence_deduction) }}</td></tr>
-                                    @endif
+                            @if ((float) $payslip->undertime_deduction > 0)
+                                <tr><td class="label">Undertime</td><td class="amount">{{ $peso($payslip->undertime_deduction) }}</td></tr>
+                            @endif
+                            @if ((float) $payslip->absence_deduction > 0)
+                                <tr><td class="label">Absences{{ $payslip->absent_days > 0 ? " ({$payslip->absent_days})" : '' }}</td><td class="amount">{{ $peso($payslip->absence_deduction) }}</td></tr>
+                            @endif
                             @if ((float) $payslip->cash_advance_deduction > 0)
                                 <tr><td class="label">Cash Advance</td><td class="amount">{{ $peso($payslip->cash_advance_deduction) }}</td></tr>
                             @endif
@@ -454,10 +518,52 @@
                 </tr>
             </table>
 
+            @if ((float) $payslip->total_adjustments > 0)
+                <div class="extras">
+                    <p class="section-title adjustments-title">Adjustments</p>
+                    <table class="row">
+                        @foreach (\App\Models\Payslip::ADJUSTMENT_FIELDS as $field => $label)
+                            @if ((float) $payslip->{$field} > 0)
+                                <tr><td class="label">{{ $label }}</td><td class="amount">{{ $peso($payslip->{$field}) }}</td></tr>
+                            @endif
+                        @endforeach
+                    </table>
+                    <div class="total-box total-adjustments">
+                        <table class="row">
+                            <tr>
+                                <td>Total Adjustments</td>
+                                <td class="amount">{{ $peso($payslip->total_adjustments) }}</td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+            @endif
+
             <div class="net">
                 <div class="label">Net Salary</div>
                 <div class="amount">{{ $peso($payslip->net_pay) }}</div>
             </div>
+
+            @if ((float) $payslip->warehouse_subsidy > 0)
+                <div class="extras">
+                    <p class="section-title subsidy-title">Warehouse Subsidy</p>
+                    <table class="row">
+                        @foreach (\App\Models\Payslip::WAREHOUSE_SUBSIDY_FIELDS as $field => $label)
+                            @if ((float) $payslip->{$field} > 0)
+                                <tr><td class="label">{{ $label }}</td><td class="amount">{{ $peso($payslip->{$field}) }}</td></tr>
+                            @endif
+                        @endforeach
+                    </table>
+                    <div class="total-box total-subsidy">
+                        <table class="row">
+                            <tr>
+                                <td>Total Warehouse Subsidy</td>
+                                <td class="amount">{{ $peso($payslip->warehouse_subsidy) }}</td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+            @endif
 
             <table class="signatures">
                 <tr>

@@ -11,6 +11,7 @@ use App\Http\Controllers\HolidayController;
 use App\Http\Controllers\OptionListController;
 use App\Http\Controllers\PayrollController;
 use App\Http\Controllers\PayrollSettingsController;
+use App\Http\Controllers\PayslipAdjustmentController;
 use App\Http\Controllers\PayslipPdfController;
 use App\Http\Controllers\ScheduleController;
 use App\Http\Controllers\ShiftTypeController;
@@ -92,6 +93,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('payroll.payslips.pdf.all');
     Route::get('payroll/{payroll}/payslips/{payslip}/pdf', [PayslipPdfController::class, 'downloadOne'])
         ->name('payroll.payslips.pdf.one');
+    Route::patch('payroll/{payroll}/payslips/{payslip}/adjustments', [PayslipAdjustmentController::class, 'update'])
+        ->name('payroll.payslips.adjustments.update');
 
     Route::get('payroll-settings', [PayrollSettingsController::class, 'edit'])->name('payroll-settings.edit');
     Route::put('payroll-settings', [PayrollSettingsController::class, 'update'])->name('payroll-settings.update');

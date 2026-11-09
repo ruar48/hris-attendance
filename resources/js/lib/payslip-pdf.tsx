@@ -6,6 +6,8 @@ import {
     StyleSheet,
     pdf,
 } from '@react-pdf/renderer';
+import { ADJUSTMENT_FIELDS, WAREHOUSE_SUBSIDY_FIELDS } from '@/lib/payslip-fields';
+import type { PayslipAmountField } from '@/lib/payslip-fields';
 
 export type PayslipPdfData = {
     id: number;
@@ -29,7 +31,17 @@ export type PayslipPdfData = {
     pagibig: number;
     total_earnings: number;
     total_deductions: number;
+    reimbursement: number;
+    allowance: number;
+    total_adjustments: number;
     net_pay: number;
+    forklift_diesel: number;
+    disbursement_batangas: number;
+    disbursement_dasma: number;
+    disbursement_san_pablo: number;
+    disbursement_tayabas: number;
+    disbursement_taguig: number;
+    warehouse_subsidy: number;
 };
 
 export type PayrollPdfMeta = {
@@ -150,6 +162,31 @@ const styles = StyleSheet.create({
     totalDeductions: {
         backgroundColor: '#fef2f2',
         color: '#b91c1c',
+    },
+    extras: {
+        marginTop: 6,
+    },
+    adjustmentsTitle: {
+        color: '#7c3aed',
+    },
+    subsidyTitle: {
+        color: '#b45309',
+    },
+    extraCols: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        justifyContent: 'space-between',
+    },
+    extraItem: {
+        width: '48%',
+    },
+    totalAdjustments: {
+        backgroundColor: '#f5f3ff',
+        color: '#6d28d9',
+    },
+    totalSubsidy: {
+        backgroundColor: '#fffbeb',
+        color: '#b45309',
     },
     net: {
         marginTop: 8,
@@ -365,6 +402,51 @@ function Amounts({ payslip }: { payslip: PayslipPdfData }) {
     );
 }
 
+type PdfStyle = (typeof styles)[keyof typeof styles];
+
+/** Adjustments / Warehouse Subsidy block — only printed when it has an amount. */
+function ExtraSection({
+    title,
+    titleStyle,
+    totalLabel,
+    totalStyle,
+    fields,
+    payslip,
+    total,
+}: {
+    title: string;
+    titleStyle: PdfStyle;
+    totalLabel: string;
+    totalStyle: PdfStyle;
+    fields: ReadonlyArray<{ key: PayslipAmountField; label: string }>;
+    payslip: PayslipPdfData;
+    total: number;
+}) {
+    if (!(total > 0)) {
+        return null;
+    }
+
+    return (
+        <View style={styles.extras}>
+            <Text style={[styles.sectionTitle, titleStyle]}>{title}</Text>
+            <View style={styles.extraCols}>
+                {fields
+                    .filter(({ key }) => payslip[key] > 0)
+                    .map(({ key, label }) => (
+                        <View key={key} style={[styles.row, styles.extraItem]}>
+                            <Text style={styles.rowLabel}>{label}</Text>
+                            <Text style={styles.rowAmount}>{peso(payslip[key])}</Text>
+                        </View>
+                    ))}
+            </View>
+            <View style={[styles.totalBox, totalStyle]}>
+                <Text>{totalLabel}</Text>
+                <Text>{peso(total)}</Text>
+            </View>
+        </View>
+    );
+}
+
 function PayslipCopy({
     payslip,
     period,
@@ -402,10 +484,30 @@ function PayslipCopy({
             />
             <Amounts payslip={payslip} />
 
+            <ExtraSection
+                title="Adjustments"
+                titleStyle={styles.adjustmentsTitle}
+                totalLabel="Total Adjustments"
+                totalStyle={styles.totalAdjustments}
+                fields={ADJUSTMENT_FIELDS}
+                payslip={payslip}
+                total={payslip.total_adjustments}
+            />
+
             <View style={styles.net}>
                 <Text style={styles.netLabel}>Net Salary</Text>
                 <Text style={styles.netAmount}>{peso(payslip.net_pay)}</Text>
             </View>
+
+            <ExtraSection
+                title="Warehouse Subsidy"
+                titleStyle={styles.subsidyTitle}
+                totalLabel="Total Warehouse Subsidy"
+                totalStyle={styles.totalSubsidy}
+                fields={WAREHOUSE_SUBSIDY_FIELDS}
+                payslip={payslip}
+                total={payslip.warehouse_subsidy}
+            />
 
             <View style={styles.signatures}>
                 <View style={styles.sigBlock}>

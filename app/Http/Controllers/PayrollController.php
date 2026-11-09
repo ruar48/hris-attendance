@@ -144,7 +144,17 @@ class PayrollController extends Controller
                 'pagibig' => (float) $payslip->pagibig,
                 'total_earnings' => (float) $payslip->total_earnings,
                 'total_deductions' => (float) $payslip->total_deductions,
+                'reimbursement' => (float) $payslip->reimbursement,
+                'allowance' => (float) $payslip->allowance,
+                'total_adjustments' => (float) $payslip->total_adjustments,
                 'net_pay' => (float) $payslip->net_pay,
+                'forklift_diesel' => (float) $payslip->forklift_diesel,
+                'disbursement_batangas' => (float) $payslip->disbursement_batangas,
+                'disbursement_dasma' => (float) $payslip->disbursement_dasma,
+                'disbursement_san_pablo' => (float) $payslip->disbursement_san_pablo,
+                'disbursement_tayabas' => (float) $payslip->disbursement_tayabas,
+                'disbursement_taguig' => (float) $payslip->disbursement_taguig,
+                'warehouse_subsidy' => (float) $payslip->warehouse_subsidy,
             ]),
         ]);
     }
